@@ -36,7 +36,7 @@ public/
 - Prisma access is centralized in `lib/db/prisma.ts`.
 
 ## Features Implemented
-- Password-protected admin access via middleware (`APP_PASSWORD`)
+- Password-protected admin access via middleware (`APP_PASSWORD` or `APP_PASSWORDS`)
 - Dashboard:
   - List events
   - Create event
@@ -64,6 +64,8 @@ Create `.env` from `.env.example`:
 ```env
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require"
 APP_PASSWORD="change-this-password"
+# Optional for multiple shared logins:
+# APP_PASSWORDS="change-this-password,second-password"
 ```
 
 ## Local Run
@@ -98,7 +100,7 @@ npm run build
 1. Push this repo to GitHub.
 2. Import project in Vercel.
 3. Add environment variables in Vercel project settings (Production/Preview):
-   - `APP_PASSWORD`
+   - `APP_PASSWORD` or `APP_PASSWORDS`
    - `DATABASE_URL`
 4. Run schema migration against your Vercel Postgres DB:
 ```bash
