@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { listEvents } from '@/modules/events/services';
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardPage() {
   const events = await listEvents();
   const totalBudget = events.reduce((sum, event) => sum + event.budget, 0);

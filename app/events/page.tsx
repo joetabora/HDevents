@@ -8,6 +8,8 @@ import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { createEventAction, deleteEventAction } from '@/modules/events/actions';
 import { listEvents } from '@/modules/events/services';
 
+export const dynamic = 'force-dynamic';
+
 export default async function EventsPage() {
   const events = await listEvents();
 
