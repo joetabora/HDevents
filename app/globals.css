@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --bg-primary: #0b0b0d;
+  --bg-secondary: #111113;
+  --bg-card: #18181b;
+  --border: #27272a;
+  --text-primary: #fafafa;
+  --text-muted: #a1a1aa;
+  --accent: #ff6a00;
+  --accent-hover: #ff8124;
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  @apply antialiased;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+input,
+select,
+textarea {
+  @apply w-full rounded-2xl border px-3 py-2 text-sm outline-none transition duration-200 ease-in-out;
+  background: var(--bg-secondary);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(255, 106, 0, 0.2);
+}
+
+button {
+  @apply rounded-2xl transition duration-200 ease-in-out;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #111113;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}

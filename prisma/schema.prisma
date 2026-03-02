@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Event {
+  id        String      @id @default(uuid())
+  name      String
+  date      DateTime
+  budget    Float
+  status    String      @default("PLANNING")
+  items     Item[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model Item {
+  id        String     @id @default(uuid())
+  name      String
+  category  String
+  fee       Float
+  status    String     @default("PROSPECT")
+  notes     String?
+  event     Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId   String
+  contact   Contact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  contactId String?
+  documents Document[]
+  createdAt DateTime   @default(now())
+}
+
+model Contact {
+  id           String   @id @default(uuid())
+  businessName String
+  category     String
+  contactName  String?
+  phone        String?
+  email        String?
+  notes        String?
+  items        Item[]
+  createdAt    DateTime @default(now())
+}
+
+model Document {
+  id         String   @id @default(uuid())
+  filePath   String
+  fileName   String
+  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  itemId     String
+  uploadedAt DateTime @default(now())
+}

@@ -1,0 +1,37 @@
+{
+  "name": "hdevents",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "prisma:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:init": "prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > prisma/init.sql && prisma db execute --file prisma/init.sql --schema prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@headlessui/react": "^2.2.9",
+    "@prisma/client": "^6.16.2",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.34.3",
+    "lucide-react": "^0.575.0",
+    "next": "^14.2.35",
+    "pdf-lib": "^1.17.1",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "sonner": "^2.0.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "prisma": "^6.16.2",
+    "tailwindcss": "^3.4.15",
+    "typescript": "^5.7.2"
+  }
+}
