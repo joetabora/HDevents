@@ -13,21 +13,30 @@ function isPublicPath(pathname: string): boolean {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  if (isPublicPath(pathname)) {
-    return NextResponse.next();
-  }
-
   const expectedPassword = process.env.APP_PASSWORD;
+  const submittedPassword = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const isAuthenticated = Boolean(expectedPassword && submittedPassword === expectedPassword);
 
   if (!expectedPassword) {
     return new NextResponse('APP_PASSWORD is not configured', { status: 500 });
   }
 
-  const submittedPassword = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  if (pathname === '/login' && isAuthenticated) {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
 
-  if (submittedPassword !== expectedPassword) {
-    return new NextResponse('Unauthorized', { status: 401 });
+  if (isPublicPath(pathname)) {
+    return NextResponse.next();
+  }
+
+  if (!isAuthenticated) {
+    if (pathname.startsWith('/api')) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('next', pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.next();

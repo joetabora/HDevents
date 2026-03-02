@@ -1,7 +1,7 @@
 'use client';
 
 import { Lock } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -29,7 +30,8 @@ export default function LoginPage() {
       return;
     }
 
-    router.push('/');
+    const nextPath = searchParams.get('next');
+    router.push(nextPath && nextPath.startsWith('/') ? nextPath : '/');
     router.refresh();
   }
 
