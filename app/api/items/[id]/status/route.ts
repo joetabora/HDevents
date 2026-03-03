@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { updateItemStatus } from '@/modules/events/services';
 import { parseItemStatus } from '@/modules/events/validators';
+import { logActivity } from '@/modules/users/activity';
+import { requireEditPermission } from '@/modules/users/server';
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const itemId = params.id;
@@ -13,8 +15,19 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 
   try {
+    const user = await requireEditPermission();
     const status = parseItemStatus(statusInput);
-    await updateItemStatus(itemId, status);
+    const updated = await updateItemStatus(itemId, status);
+
+    if (updated.status === 'LOCKED_IN') {
+      await logActivity({
+        userId: user.id,
+        action: 'VENDOR_LOCKED_IN',
+        entityType: 'VENDOR',
+        entityId: itemId
+      });
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json(

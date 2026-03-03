@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
 export default function LoginPage() {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -21,11 +22,12 @@ export default function LoginPage() {
     const response = await fetch('/api/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password })
+      body: JSON.stringify({ email, password })
     });
 
     if (!response.ok) {
-      setError('Incorrect password');
+      const result = (await response.json().catch(() => null)) as { message?: string } | null;
+      setError(result?.message ?? 'Sign in failed');
       setLoading(false);
       return;
     }
@@ -43,12 +45,24 @@ export default function LoginPage() {
             <Lock className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-[#FAFAFA]">Admin Access</h1>
-            <p className="text-sm text-[#A1A1AA]">Enter app password to continue.</p>
+            <h1 className="text-2xl font-bold text-[#FAFAFA]">Organization Login</h1>
+            <p className="text-sm text-[#A1A1AA]">Sign in with your Rally Ops account.</p>
           </div>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4">
+          <label>
+            <span className="mb-1 block text-sm font-medium text-[#A1A1AA]">Email</span>
+            <input
+              type="email"
+              name="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+              autoComplete="username"
+            />
+          </label>
+
           <label>
             <span className="mb-1 block text-sm font-medium text-[#A1A1AA]">Password</span>
             <input
@@ -57,6 +71,7 @@ export default function LoginPage() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
+              autoComplete="current-password"
             />
           </label>
 

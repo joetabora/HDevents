@@ -2,9 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { parseCategory } from '@/modules/events/validators';
+import { logActivity } from '@/modules/users/activity';
+import { requireDeletePermission, requireEditPermission } from '@/modules/users/server';
 import { deleteContact, updateContact } from './services';
 
 export async function updateContactAction(formData: FormData): Promise<void> {
+  const user = await requireEditPermission();
   const id = String(formData.get('id') ?? '');
   const businessName = String(formData.get('businessName') ?? '').trim();
   const category = parseCategory(String(formData.get('category') ?? ''));
@@ -23,11 +26,19 @@ export async function updateContactAction(formData: FormData): Promise<void> {
     notes: String(formData.get('notes') ?? '').trim()
   });
 
+  await logActivity({
+    userId: user.id,
+    action: 'CONTACT_UPDATED',
+    entityType: 'VENDOR',
+    entityId: id
+  });
+
   revalidatePath('/contacts');
   revalidatePath('/events');
 }
 
 export async function deleteContactAction(formData: FormData): Promise<void> {
+  await requireDeletePermission();
   const id = String(formData.get('id') ?? '');
 
   if (!id) {

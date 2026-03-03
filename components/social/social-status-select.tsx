@@ -6,7 +6,15 @@ import { toast } from 'sonner';
 import { updateSocialPostStatusAction } from '@/modules/social/actions';
 import { SOCIAL_POST_STATUSES, type SocialPostStatus } from '@/lib/types/social';
 
-export function SocialStatusSelect({ postId, currentStatus }: { postId: string; currentStatus: SocialPostStatus }) {
+export function SocialStatusSelect({
+  postId,
+  currentStatus,
+  disabled = false
+}: {
+  postId: string;
+  currentStatus: SocialPostStatus;
+  disabled?: boolean;
+}) {
   const [status, setStatus] = useState<SocialPostStatus>(currentStatus);
   const [isPending, setIsPending] = useState(false);
   const router = useRouter();
@@ -36,7 +44,7 @@ export function SocialStatusSelect({ postId, currentStatus }: { postId: string; 
   return (
     <select
       value={status}
-      disabled={isPending}
+      disabled={isPending || disabled}
       onChange={(event) => {
         updateStatus(event.target.value as SocialPostStatus).catch(() => {
           setIsPending(false);

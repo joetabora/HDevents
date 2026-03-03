@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { updateSocialPostStatus } from '@/modules/social/services';
 import { parseSocialStatus } from '@/modules/social/validators';
+import { requireEditPermission } from '@/modules/users/server';
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const body = (await request.json().catch(() => null)) as { status?: string } | null;
@@ -11,6 +12,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 
   try {
+    await requireEditPermission();
     const status = parseSocialStatus(statusValue);
     await updateSocialPostStatus(params.id, status);
     return NextResponse.json({ success: true });

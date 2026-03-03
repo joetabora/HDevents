@@ -1,11 +1,11 @@
 'use client';
 
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { X } from 'lucide-react';
+import { RefreshCw, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { updateSocialPostPerformanceAction } from '@/modules/social/actions';
+import { fetchSocialPublicMetricsAction, updateSocialPostPerformanceAction } from '@/modules/social/actions';
 import { Button } from '@/components/ui/button';
 
 export function SocialPerformanceModal({
@@ -22,10 +22,17 @@ export function SocialPerformanceModal({
     comments: number;
     shares: number;
     views: number;
+    postUrl?: string | null;
   };
 }) {
   const [isPending, setIsPending] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
+  const [postUrl, setPostUrl] = useState(post.postUrl ?? '');
   const router = useRouter();
+
+  useEffect(() => {
+    setPostUrl(post.postUrl ?? '');
+  }, [post.postUrl, open]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,6 +53,26 @@ export function SocialPerformanceModal({
     toast.success(result.message);
     setIsPending(false);
     onClose();
+    router.refresh();
+  }
+
+  async function handleFetchPublicMetrics() {
+    setIsFetching(true);
+
+    const formData = new FormData();
+    formData.set('id', post.id);
+    formData.set('postUrl', postUrl);
+
+    const result = await fetchSocialPublicMetricsAction(formData);
+
+    if (!result.success) {
+      toast.error(result.message);
+      setIsFetching(false);
+      return;
+    }
+
+    toast.success(result.message);
+    setIsFetching(false);
     router.refresh();
   }
 
@@ -75,7 +102,7 @@ export function SocialPerformanceModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <DialogPanel className="w-full max-w-lg rounded-2xl border border-[#27272A] bg-[#18181B] p-6 shadow-2xl">
+              <DialogPanel className="w-full max-w-xl rounded-2xl border border-[#27272A] bg-[#18181B] p-6 shadow-2xl">
                 <div className="mb-5 flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-semibold text-[#FAFAFA]">Performance</h3>
@@ -109,6 +136,28 @@ export function SocialPerformanceModal({
                   <label>
                     <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Views</span>
                     <input type="number" min="0" name="views" defaultValue={post.views} />
+                  </label>
+
+                  <label className="md:col-span-2">
+                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Public Post URL</span>
+                    <div className="flex gap-2">
+                      <input value={postUrl} onChange={(event) => setPostUrl(event.target.value)} placeholder="https://..." />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        loading={isFetching}
+                        onClick={() => {
+                          handleFetchPublicMetrics().catch(() => {
+                            setIsFetching(false);
+                            toast.error('Unable to fetch automatically. Enter manually.');
+                          });
+                        }}
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        Fetch Public Metrics
+                      </Button>
+                    </div>
+                    <p className="mt-1 text-xs text-[#A1A1AA]">Public Engagement Tracker (URL-based, no private API tokens).</p>
                   </label>
 
                   <div className="md:col-span-2 flex items-center justify-end gap-2 pt-2">

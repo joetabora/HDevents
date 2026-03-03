@@ -14,6 +14,10 @@ model Event {
   budget    Float
   status    String      @default("PLANNING")
   items     Item[]
+  createdById String?
+  assignedToId String?
+  createdBy User? @relation("EventCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  assignedTo User? @relation("EventAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 }
@@ -60,6 +64,7 @@ model SocialPost {
   platforms    String[]
   type         String
   status       String   @default("IDEA")
+  postUrl      String?
   caption      String?
   hashtags     String?
   scheduledFor DateTime?
@@ -68,6 +73,68 @@ model SocialPost {
   comments     Int      @default(0)
   shares       Int      @default(0)
   views        Int      @default(0)
+  publicLikes    Int      @default(0)
+  publicComments Int      @default(0)
+  publicShares   Int      @default(0)
+  publicViews    Int      @default(0)
+  lastSyncedAt   DateTime?
+  createdById    String?
+  createdBy      User?    @relation("SocialPostAuthor", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model User {
+  id         String   @id @default(uuid())
+  name       String
+  email      String   @unique
+  password   String
+  role       String   @default("VIEWER")
+  department String   @default("ADMIN")
+  orgId      String   @default("RALLY_MAIN")
+  createdAt  DateTime @default(now())
+  socialPosts SocialPost[] @relation("SocialPostAuthor")
+  eventsCreated Event[] @relation("EventCreator")
+  eventsAssigned Event[] @relation("EventAssignee")
+  createdTasks Task[] @relation("TaskCreator")
+  assignedTasks Task[] @relation("TaskAssignee")
+  activityLogs ActivityLog[]
+  uploadedDocuments GlobalDocument[]
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  timestamp  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  relatedType String
+  relatedId   String?
+  assignedToId String?
+  dueDate     DateTime?
+  completed   Boolean  @default(false)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   User?    @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  assignedTo  User?    @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+}
+
+model GlobalDocument {
+  id          String   @id @default(uuid())
+  name        String
+  fileUrl     String
+  relatedType String
+  relatedId   String?
+  uploadedById String?
+  uploadedAt  DateTime @default(now())
+  uploadedBy  User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
 }

@@ -4,19 +4,29 @@ import { NewSocialPostButton } from '@/components/social/new-social-post-button'
 import { SocialPostCard } from '@/components/social/social-post-card';
 import { Card } from '@/components/ui/card';
 import { getSocialDashboardSummary } from '@/modules/social/queries';
+import { canDeleteRecords, canEditContent, canUpdatePerformance } from '@/modules/users/permissions';
+import { requireCurrentUserPage } from '@/modules/users/server';
+import { listUserOptions } from '@/modules/users/services';
 
 export const dynamic = 'force-dynamic';
 
 export default async function SocialDashboardPage() {
-  const summary = await getSocialDashboardSummary();
+  const currentUser = await requireCurrentUserPage();
+  const [summary, userOptions] = await Promise.all([
+    getSocialDashboardSummary(),
+    canEditContent(currentUser.role) ? listUserOptions() : Promise.resolve([])
+  ]);
   const usedBikePercent = Math.min(100, Math.round((summary.usedBikesPostedToday / summary.usedBikeGoal) * 100));
+  const allowEdit = canEditContent(currentUser.role);
+  const allowDelete = canDeleteRecords(currentUser.role);
+  const allowPerformance = canUpdatePerformance(currentUser.role);
 
   return (
     <div className="space-y-10">
       <PageHeader
         title="Social Control Center"
         subtitle="Monitor momentum, posting cadence, and pipeline pressure across the next seven days."
-        right={<NewSocialPostButton />}
+        right={allowEdit ? <NewSocialPostButton /> : null}
       />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -89,10 +99,19 @@ export default async function SocialDashboardPage() {
                     likes: post.likes,
                     comments: post.comments,
                     shares: post.shares,
-                    views: post.views
+                    views: post.views,
+                    publicLikes: post.publicLikes,
+                    publicComments: post.publicComments,
+                    publicShares: post.publicShares,
+                    publicViews: post.publicViews,
+                    postUrl: post.postUrl
                   }}
-                  showStatusSelect
-                  openEditOnCardClick
+                  showStatusSelect={allowEdit}
+                  openEditOnCardClick={allowEdit}
+                  allowEdit={allowEdit}
+                  allowDelete={allowDelete}
+                  allowPerformance={allowPerformance}
+                  taskUsers={userOptions}
                 />
               ))}
             </div>

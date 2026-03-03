@@ -2,6 +2,8 @@ import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 import { createItemForEvent } from '@/modules/events/services';
 import { parseCategory, parseItemStatus } from '@/modules/events/validators';
+import { logActivity } from '@/modules/users/activity';
+import { requireEditPermission } from '@/modules/users/server';
 
 function parseFee(input: string): number {
   const value = Number(input);
@@ -13,6 +15,7 @@ function parseFee(input: string): number {
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
+    const user = await requireEditPermission();
     const formData = await request.formData();
 
     const name = String(formData.get('name') ?? '').trim();
@@ -44,6 +47,12 @@ export async function POST(request: Request, { params }: { params: { id: string 
         notes: String(formData.get('newContactNotes') ?? '').trim()
       },
       files
+    });
+
+    await logActivity({
+      userId: user.id,
+      action: 'ITEM_CREATED',
+      entityType: 'VENDOR'
     });
 
     revalidatePath(`/events/${params.id}`);

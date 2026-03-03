@@ -13,7 +13,7 @@ export default async function SocialPerformancePage() {
     <div className="space-y-10">
       <PageHeader
         title="Performance Summary"
-        subtitle="Aggregate reach and engagement across core social platforms."
+        subtitle="Public Engagement Tracker with manual override support and score leaderboard."
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -38,14 +38,14 @@ export default async function SocialPerformancePage() {
       <Card>
         <div className="mb-4 flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-[#FF8124]" />
-          <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#FAFAFA]">Top 5 Posts by Views</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#FAFAFA]">Top 10 Posts by Score</h2>
         </div>
 
-        {summary.topPosts.length === 0 ? (
+        {summary.leaderboard.length === 0 ? (
           <p className="text-sm text-[#A1A1AA]">No posted content available yet.</p>
         ) : (
           <ul className="space-y-2">
-            {summary.topPosts.map((post, index) => (
+            {summary.leaderboard.map((post, index) => (
               <li key={post.id} className="flex items-center justify-between rounded-2xl border border-[#27272A] bg-[#111113] px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold text-[#FAFAFA]">
@@ -55,7 +55,7 @@ export default async function SocialPerformancePage() {
                 </div>
                 <div className="text-right">
                   <Eye className="ml-auto h-4 w-4 text-[#FF8124]" />
-                  <p className="text-sm font-semibold text-[#FAFAFA]">{post.views.toLocaleString()}</p>
+                  <p className="text-sm font-semibold text-[#FAFAFA]">Score {post.score.toLocaleString()}</p>
                 </div>
               </li>
             ))}

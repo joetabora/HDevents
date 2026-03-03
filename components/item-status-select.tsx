@@ -6,7 +6,15 @@ import { toast } from 'sonner';
 import { type ItemStatus } from '@/lib/types/domain';
 import { itemStatusValues, statusLabels } from '@/lib/utils/constants';
 
-export function ItemStatusSelect({ itemId, currentStatus }: { itemId: string; currentStatus: ItemStatus }) {
+export function ItemStatusSelect({
+  itemId,
+  currentStatus,
+  disabled = false
+}: {
+  itemId: string;
+  currentStatus: ItemStatus;
+  disabled?: boolean;
+}) {
   const [value, setValue] = useState<ItemStatus>(currentStatus);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -36,7 +44,7 @@ export function ItemStatusSelect({ itemId, currentStatus }: { itemId: string; cu
   return (
     <select
       value={value}
-      disabled={loading}
+      disabled={loading || disabled}
       onChange={(event) => {
         handleChange(event.target.value as ItemStatus).catch(() => {
           setLoading(false);

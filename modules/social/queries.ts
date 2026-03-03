@@ -15,6 +15,10 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+function engagementScore(metrics: { likes: number; comments: number; shares: number; views: number }): number {
+  return Math.round(metrics.likes * 1 + metrics.comments * 3 + metrics.shares * 5 + metrics.views / 10);
+}
+
 export async function getSocialDashboardSummary(now = new Date()) {
   const todayStart = startOfDay(now);
   const todayEnd = endOfDay(now);
@@ -163,17 +167,18 @@ export async function getPerformanceSummary() {
         likes: true,
         comments: true,
         shares: true,
-        views: true
+        views: true,
+        publicLikes: true,
+        publicComments: true,
+        publicShares: true,
+        publicViews: true
       }
     }),
     prisma.socialPost.findMany({
       where: {
         status: 'POSTED'
       },
-      orderBy: {
-        views: 'desc'
-      },
-      take: 5
+      take: 200
     })
   ]);
 
@@ -195,17 +200,43 @@ export async function getPerformanceSummary() {
       }
 
       const key = platform as SocialPlatform;
-      platformTotals[key].likes += post.likes;
-      platformTotals[key].comments += post.comments;
-      platformTotals[key].shares += post.shares;
-      platformTotals[key].views += post.views;
+      const resolvedLikes = post.publicLikes > 0 ? post.publicLikes : post.likes;
+      const resolvedComments = post.publicComments > 0 ? post.publicComments : post.comments;
+      const resolvedShares = post.publicShares > 0 ? post.publicShares : post.shares;
+      const resolvedViews = post.publicViews > 0 ? post.publicViews : post.views;
+
+      platformTotals[key].likes += resolvedLikes;
+      platformTotals[key].comments += resolvedComments;
+      platformTotals[key].shares += resolvedShares;
+      platformTotals[key].views += resolvedViews;
       platformTotals[key].posts += 1;
     }
   }
 
+  const leaderboard = topPosts
+    .map((post) => {
+      const hasPublicMetrics = post.publicLikes > 0 || post.publicComments > 0 || post.publicShares > 0 || post.publicViews > 0;
+      const likes = hasPublicMetrics ? post.publicLikes : post.likes;
+      const comments = hasPublicMetrics ? post.publicComments : post.comments;
+      const shares = hasPublicMetrics ? post.publicShares : post.shares;
+      const views = hasPublicMetrics ? post.publicViews : post.views;
+
+      return {
+        ...post,
+        score: engagementScore({ likes, comments, shares, views }),
+        displayLikes: likes,
+        displayComments: comments,
+        displayShares: shares,
+        displayViews: views
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10);
+
   return {
     platformTotals,
-    topPosts
+    topPosts: leaderboard.slice(0, 5),
+    leaderboard
   };
 }
 

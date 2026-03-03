@@ -29,6 +29,87 @@ export async function saveItemDocuments(params: { itemId: string; files: File[] 
   }
 }
 
+export async function createGlobalDocument(params: {
+  name: string;
+  relatedType: string;
+  relatedId?: string | null;
+  uploadedById?: string | null;
+  file: File;
+}) {
+  if (params.file.size <= 0) {
+    throw new Error('Document file is required');
+  }
+
+  const bytes = await params.file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+  const storedFile = await writeBinaryToStorage({
+    kind: 'uploads',
+    originalFileName: params.file.name,
+    buffer
+  });
+
+  return prisma.globalDocument.create({
+    data: {
+      name: params.name.trim(),
+      relatedType: params.relatedType,
+      relatedId: params.relatedId ?? null,
+      uploadedById: params.uploadedById ?? null,
+      fileUrl: storedFile.dbPath
+    }
+  });
+}
+
+export async function listGlobalDocuments(filters?: {
+  relatedType?: string;
+  relatedId?: string;
+  search?: string;
+}) {
+  return prisma.globalDocument.findMany({
+    where: {
+      relatedType: filters?.relatedType?.trim() ? filters.relatedType : undefined,
+      relatedId: filters?.relatedId?.trim() ? filters.relatedId : undefined,
+      name: filters?.search?.trim()
+        ? {
+            contains: filters.search.trim(),
+            mode: 'insensitive'
+          }
+        : undefined
+    },
+    include: {
+      uploadedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
+    },
+    orderBy: {
+      uploadedAt: 'desc'
+    }
+  });
+}
+
+export async function getGlobalDocumentById(documentId: string) {
+  return prisma.globalDocument.findUnique({ where: { id: documentId } });
+}
+
+export async function readGlobalDocumentBuffer(documentId: string): Promise<{ buffer: Buffer; fileName: string }> {
+  const document = await getGlobalDocumentById(documentId);
+
+  if (!document) {
+    throw new Error('Document not found');
+  }
+
+  const absolutePath = resolveFileAbsolutePath(document.fileUrl);
+  const buffer = await readFile(absolutePath);
+
+  return {
+    buffer,
+    fileName: document.name
+  };
+}
+
 export async function deleteDocument(documentId: string): Promise<void> {
   const existingDocument = await prisma.document.findUnique({ where: { id: documentId } });
 

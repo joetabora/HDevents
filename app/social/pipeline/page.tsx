@@ -5,6 +5,9 @@ import { SocialPostCard } from '@/components/social/social-post-card';
 import { Card } from '@/components/ui/card';
 import { isSocialPostStatus, SOCIAL_POST_STATUSES, type SocialPostStatus } from '@/lib/types/social';
 import { getPipelinePostsGrouped } from '@/modules/social/queries';
+import { canDeleteRecords, canEditContent, canUpdatePerformance } from '@/modules/users/permissions';
+import { requireCurrentUserPage } from '@/modules/users/server';
+import { listUserOptions } from '@/modules/users/services';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,14 +24,21 @@ function normalizeStatus(value: string): SocialPostStatus {
 }
 
 export default async function SocialPipelinePage() {
-  const grouped = await getPipelinePostsGrouped();
+  const currentUser = await requireCurrentUserPage();
+  const [grouped, userOptions] = await Promise.all([
+    getPipelinePostsGrouped(),
+    canEditContent(currentUser.role) ? listUserOptions() : Promise.resolve([])
+  ]);
+  const allowEdit = canEditContent(currentUser.role);
+  const allowDelete = canDeleteRecords(currentUser.role);
+  const allowPerformance = canUpdatePerformance(currentUser.role);
 
   return (
     <div className="space-y-10">
       <PageHeader
         title="Content Pipeline"
         subtitle="Manage creative flow from idea capture through final publish execution."
-        right={<NewSocialPostButton />}
+        right={allowEdit ? <NewSocialPostButton /> : null}
       />
 
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
@@ -66,10 +76,19 @@ export default async function SocialPipelinePage() {
                           likes: post.likes,
                           comments: post.comments,
                           shares: post.shares,
-                          views: post.views
+                          views: post.views,
+                          publicLikes: post.publicLikes,
+                          publicComments: post.publicComments,
+                          publicShares: post.publicShares,
+                          publicViews: post.publicViews,
+                          postUrl: post.postUrl
                         }}
-                        showStatusSelect
-                        openEditOnCardClick
+                        showStatusSelect={allowEdit}
+                        openEditOnCardClick={allowEdit}
+                        allowEdit={allowEdit}
+                        allowDelete={allowDelete}
+                        allowPerformance={allowPerformance}
+                        taskUsers={userOptions}
                       />
                     );
                   })}

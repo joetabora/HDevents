@@ -47,12 +47,20 @@ export async function listEvents() {
   });
 }
 
-export async function createEvent(params: { name: string; date: Date; budget: number }) {
+export async function createEvent(params: {
+  name: string;
+  date: Date;
+  budget: number;
+  createdById?: string | null;
+  assignedToId?: string | null;
+}) {
   return prisma.event.create({
     data: {
       name: params.name,
       date: params.date,
-      budget: params.budget
+      budget: params.budget,
+      createdById: params.createdById ?? null,
+      assignedToId: params.assignedToId ?? null
     }
   });
 }
@@ -174,6 +182,13 @@ export async function updateEventStatus(eventId: string, status: EventStatus) {
   return prisma.event.update({
     where: { id: eventId },
     data: { status }
+  });
+}
+
+export async function updateEventBudget(eventId: string, budget: number) {
+  return prisma.event.update({
+    where: { id: eventId },
+    data: { budget }
   });
 }
 

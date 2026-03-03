@@ -17,6 +17,7 @@ type SocialPostFormData = {
   platforms: string[];
   caption: string | null;
   hashtags: string | null;
+  postUrl?: string | null;
   scheduledFor: Date | string | null;
 };
 
@@ -149,6 +150,15 @@ export function SocialPostFormModal({
                     <label>
                       <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Scheduled Date</span>
                       <input type="datetime-local" name="scheduledFor" defaultValue={toDateTimeLocalValue(initialPost?.scheduledFor ?? null)} />
+                    </label>
+
+                    <label>
+                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Post URL</span>
+                      <input
+                        name="postUrl"
+                        placeholder="https://..."
+                        defaultValue={initialPost?.postUrl ?? ''}
+                      />
                     </label>
 
                     <label className="md:col-span-2">

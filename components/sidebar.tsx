@@ -3,15 +3,20 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CalendarDays, ChevronLeft, ChevronRight, LayoutDashboard, Radio, Settings, Users } from 'lucide-react';
+import { Briefcase, CalendarDays, ChevronLeft, ChevronRight, LayoutDashboard, Radio, Settings, Users, UserSquare2 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import type { UserDepartment, UserRole } from '@/modules/users/constants';
+import { canManageUsers, canViewExecutiveOverview } from '@/modules/users/permissions';
 import { LogoutButton } from './logout-button';
 
-const navLinks = [
+const baseNavLinks = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/events', label: 'Events', icon: CalendarDays },
   { href: '/social', label: 'Social', icon: Radio },
   { href: '/contacts', label: 'Contacts', icon: Users },
+  { href: '/tasks', label: 'Task Center', icon: Briefcase },
+  { href: '/tasks/mine', label: 'My Tasks', icon: UserSquare2 },
+  { href: '/documents', label: 'Documents', icon: Briefcase },
   { href: '/settings', label: 'Settings', icon: Settings }
 ];
 
@@ -19,14 +24,22 @@ export function Sidebar({
   collapsed,
   onToggle,
   mobileOpen,
-  onCloseMobile
+  onCloseMobile,
+  currentUser
 }: {
   collapsed: boolean;
   onToggle: () => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  currentUser: { id: string; name: string; email: string; role: UserRole; department: UserDepartment } | null;
 }) {
   const pathname = usePathname();
+  const role = currentUser?.role ?? 'VIEWER';
+  const navLinks = [
+    ...baseNavLinks,
+    ...(canViewExecutiveOverview(role) ? [{ href: '/executive', label: 'Executive', icon: LayoutDashboard }] : []),
+    ...(canManageUsers(role) ? [{ href: '/users', label: 'Users', icon: Users }] : [])
+  ];
 
   const sidebarContent = (
     <>
@@ -82,6 +95,13 @@ export function Sidebar({
       </nav>
 
       <div className="mt-auto pt-8">
+        {!collapsed && currentUser ? (
+          <div className="mb-3 rounded-2xl border border-[#27272A] bg-[#18181B] px-3 py-2">
+            <p className="truncate text-xs font-semibold uppercase tracking-[0.12em] text-[#FF8124]">{currentUser.role}</p>
+            <p className="truncate text-sm text-[#FAFAFA]">{currentUser.name}</p>
+            <p className="truncate text-xs text-[#A1A1AA]">{currentUser.department}</p>
+          </div>
+        ) : null}
         <LogoutButton compact={collapsed} />
       </div>
     </>

@@ -4,9 +4,16 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Menu } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import type { UserDepartment, UserRole } from '@/modules/users/constants';
 import { Sidebar } from './sidebar';
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  currentUser
+}: {
+  children: React.ReactNode;
+  currentUser: { id: string; name: string; email: string; role: UserRole; department: UserDepartment } | null;
+}) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -33,6 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onToggle={() => setCollapsed((prev) => !prev)}
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
+        currentUser={currentUser}
       />
 
       <motion.main

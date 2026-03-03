@@ -1,17 +1,25 @@
 import Link from 'next/link';
 import { Trash2 } from 'lucide-react';
+import { NewTaskButton } from '@/components/tasks/new-task-button';
 import { SubmitButton } from '@/components/forms/submit-button';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
-import { createEventAction, deleteEventAction } from '@/modules/events/actions';
+import { createEventAction, deleteEventAction, updateEventBudgetFormAction } from '@/modules/events/actions';
 import { listEvents } from '@/modules/events/services';
+import { canDeleteRecords, canEditContent, canModifyBudgets } from '@/modules/users/permissions';
+import { requireCurrentUserPage } from '@/modules/users/server';
+import { listUserOptions } from '@/modules/users/services';
 
 export const dynamic = 'force-dynamic';
 
 export default async function EventsPage() {
-  const events = await listEvents();
+  const currentUser = await requireCurrentUserPage();
+  const allowEdit = canEditContent(currentUser.role);
+  const allowDelete = canDeleteRecords(currentUser.role);
+  const allowBudgetEdit = canModifyBudgets(currentUser.role);
+  const [events, userOptions] = await Promise.all([listEvents(), allowEdit ? listUserOptions() : Promise.resolve([])]);
 
   return (
     <div className="space-y-10">
@@ -20,29 +28,43 @@ export default async function EventsPage() {
         subtitle="Create, inspect, and close out your active event operations."
       />
 
-      <Card>
-        <h2 className="text-lg font-semibold text-[#FAFAFA]">Create Event</h2>
-        <form action={createEventAction} className="mt-4 grid gap-4 md:grid-cols-3">
-          <label>
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Event Name</span>
-            <input name="name" required />
-          </label>
+      {allowEdit ? (
+        <Card>
+          <h2 className="text-lg font-semibold text-[#FAFAFA]">Create Event</h2>
+          <form action={createEventAction} className="mt-4 grid gap-4 md:grid-cols-4">
+            <label>
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Event Name</span>
+              <input name="name" required />
+            </label>
 
-          <label>
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Event Date</span>
-            <input name="date" type="date" required />
-          </label>
+            <label>
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Event Date</span>
+              <input name="date" type="date" required />
+            </label>
 
-          <label>
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Budget (USD)</span>
-            <input name="budget" type="number" min="0" step="0.01" required />
-          </label>
+            <label>
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Budget (USD)</span>
+              <input name="budget" type="number" min="0" step="0.01" required />
+            </label>
 
-          <SubmitButton variant="primary" className="w-fit" pendingText="Creating...">
-            Create Event
-          </SubmitButton>
-        </form>
-      </Card>
+            <label>
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Assign To</span>
+              <select name="assignedToId" defaultValue="">
+                <option value="">Unassigned</option>
+                {userOptions.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <SubmitButton variant="primary" className="w-fit" pendingText="Creating...">
+              Create Event
+            </SubmitButton>
+          </form>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-2">
         {events.map((event) => (
@@ -66,14 +88,31 @@ export default async function EventsPage() {
                 <Button variant="secondary">View Event</Button>
               </Link>
 
-              <form action={deleteEventAction}>
-                <input type="hidden" name="id" value={event.id} />
-                <SubmitButton variant="danger" pendingText="Deleting...">
-                  <Trash2 className="h-4 w-4" />
-                  Delete
+              {allowEdit ? <NewTaskButton label="Task" compact relatedType="EVENT" relatedId={event.id} users={userOptions} /> : null}
+
+              {allowDelete ? (
+                <form action={deleteEventAction}>
+                  <input type="hidden" name="id" value={event.id} />
+                  <SubmitButton variant="danger" pendingText="Deleting...">
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </SubmitButton>
+                </form>
+              ) : null}
+            </div>
+
+            {allowBudgetEdit ? (
+              <form action={updateEventBudgetFormAction} className="mt-3 flex items-end gap-2">
+                <input type="hidden" name="eventId" value={event.id} />
+                <label className="w-full max-w-xs">
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Adjust Budget</span>
+                  <input name="budget" type="number" min="0" step="0.01" defaultValue={event.budget} />
+                </label>
+                <SubmitButton variant="secondary" pendingText="Saving...">
+                  Save Budget
                 </SubmitButton>
               </form>
-            </div>
+            ) : null}
           </Card>
         ))}
 

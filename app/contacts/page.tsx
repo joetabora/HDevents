@@ -1,5 +1,6 @@
 import { type Category } from '@/lib/types/domain';
 import { AddContactModal } from '@/components/modals/add-contact-modal';
+import { NewTaskButton } from '@/components/tasks/new-task-button';
 import { SubmitButton } from '@/components/forms/submit-button';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
@@ -9,6 +10,9 @@ import { formatDate } from '@/lib/utils/format';
 import { deleteContactAction, updateContactAction } from '@/modules/contacts/actions';
 import { listContacts } from '@/modules/contacts/services';
 import { parseCategory } from '@/modules/events/validators';
+import { canDeleteRecords, canEditContent } from '@/modules/users/permissions';
+import { requireCurrentUserPage } from '@/modules/users/server';
+import { listUserOptions } from '@/modules/users/services';
 
 function safeCategory(value?: string): Category | undefined {
   if (!value) {
@@ -27,15 +31,22 @@ export default async function ContactsPage({
 }: {
   searchParams?: { category?: string };
 }) {
+  const currentUser = await requireCurrentUserPage();
+  const allowEdit = canEditContent(currentUser.role);
+  const allowDelete = canDeleteRecords(currentUser.role);
+
   const selectedCategory = safeCategory(searchParams?.category);
-  const contacts = await listContacts(selectedCategory);
+  const [contacts, userOptions] = await Promise.all([
+    listContacts(selectedCategory),
+    allowEdit ? listUserOptions() : Promise.resolve([])
+  ]);
 
   return (
     <div className="space-y-10">
       <PageHeader
         title="Contacts"
         subtitle="Manage vendor relationships and track event participation history."
-        right={<AddContactModal />}
+        right={allowEdit ? <AddContactModal /> : null}
       />
 
       <Card>
@@ -64,58 +75,73 @@ export default async function ContactsPage({
 
             return (
               <Card key={contact.id}>
-                <form action={updateContactAction} className="grid gap-3 md:grid-cols-3">
-                  <input type="hidden" name="id" value={contact.id} />
+                {allowEdit ? (
+                  <form action={updateContactAction} className="grid gap-3 md:grid-cols-3">
+                    <input type="hidden" name="id" value={contact.id} />
 
-                  <label>
-                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Business Name</span>
-                    <input name="businessName" defaultValue={contact.businessName} required />
-                  </label>
+                    <label>
+                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Business Name</span>
+                      <input name="businessName" defaultValue={contact.businessName} required />
+                    </label>
 
-                  <label>
-                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Category</span>
-                    <select name="category" defaultValue={contact.category}>
-                      {categoryValues.map((category) => (
-                        <option key={category} value={category}>
-                          {categoryLabels[category]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                    <label>
+                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Category</span>
+                      <select name="category" defaultValue={contact.category}>
+                        {categoryValues.map((category) => (
+                          <option key={category} value={category}>
+                            {categoryLabels[category]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
 
-                  <label>
-                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Contact Name</span>
-                    <input name="contactName" defaultValue={contact.contactName ?? ''} />
-                  </label>
+                    <label>
+                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Contact Name</span>
+                      <input name="contactName" defaultValue={contact.contactName ?? ''} />
+                    </label>
 
-                  <label>
-                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Phone</span>
-                    <input name="phone" defaultValue={contact.phone ?? ''} />
-                  </label>
+                    <label>
+                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Phone</span>
+                      <input name="phone" defaultValue={contact.phone ?? ''} />
+                    </label>
 
-                  <label>
-                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Email</span>
-                    <input name="email" type="email" defaultValue={contact.email ?? ''} />
-                  </label>
+                    <label>
+                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Email</span>
+                      <input name="email" type="email" defaultValue={contact.email ?? ''} />
+                    </label>
 
-                  <label className="md:col-span-3">
-                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Notes</span>
-                    <textarea name="notes" rows={2} defaultValue={contact.notes ?? ''} />
-                  </label>
+                    <label className="md:col-span-3">
+                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Notes</span>
+                      <textarea name="notes" rows={2} defaultValue={contact.notes ?? ''} />
+                    </label>
 
-                  <div className="md:col-span-3 flex flex-wrap items-center justify-between gap-2">
-                    <SubmitButton variant="primary" pendingText="Saving...">
-                      Save Contact
-                    </SubmitButton>
+                    <div className="md:col-span-3 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <SubmitButton variant="primary" pendingText="Saving...">
+                          Save Contact
+                        </SubmitButton>
+                        <NewTaskButton label="Task" compact relatedType="VENDOR" relatedId={contact.id} users={userOptions} />
+                      </div>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-base font-semibold text-[#FAFAFA]">{contact.businessName}</p>
+                    <p className="text-sm text-[#A1A1AA]">{contact.category}</p>
+                    <p className="text-sm text-[#A1A1AA]">{contact.contactName ?? 'No contact name'}</p>
+                    <p className="text-sm text-[#A1A1AA]">{contact.email ?? 'No email'} • {contact.phone ?? 'No phone'}</p>
+                    {contact.notes ? <p className="text-sm text-[#A1A1AA]">{contact.notes}</p> : null}
                   </div>
-                </form>
+                )}
 
-                <form action={deleteContactAction} className="mt-3">
-                  <input type="hidden" name="id" value={contact.id} />
-                  <SubmitButton variant="danger" pendingText="Deleting...">
-                    Delete Contact
-                  </SubmitButton>
-                </form>
+                {allowDelete ? (
+                  <form action={deleteContactAction} className="mt-3">
+                    <input type="hidden" name="id" value={contact.id} />
+                    <SubmitButton variant="danger" pendingText="Deleting...">
+                      Delete Contact
+                    </SubmitButton>
+                  </form>
+                ) : null}
 
                 <div className="mt-4 rounded-2xl border border-[#27272A] bg-[#111113] p-3">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Past Events</h3>

@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { readDocumentBuffer } from '@/modules/documents/services';
+import { requireCurrentUserAction } from '@/modules/users/server';
 
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   try {
+    await requireCurrentUserAction();
     const file = await readDocumentBuffer(params.id);
     const bytes = new Uint8Array(file.buffer.byteLength);
     bytes.set(file.buffer);

@@ -1,31 +1,71 @@
 import { NextResponse } from 'next/server';
-import { getAllowedAppPasswords } from '@/lib/utils/auth-passwords';
+import { createSessionToken, AUTH_COOKIE_NAME, getSessionMaxAgeSeconds } from '@/modules/users/session';
+import { ensureBootstrapAdmin, getUserCount, verifyUserCredentials } from '@/modules/users/services';
 
-const AUTH_COOKIE_NAME = 'hd_app_auth';
+function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
 
 export async function POST(request: Request) {
-  const allowedPasswords = getAllowedAppPasswords();
+  const body = (await request.json().catch(() => null)) as { email?: string; password?: string; name?: string } | null;
+  const submittedEmail = normalizeEmail(String(body?.email ?? ''));
+  const submittedPassword = String(body?.password ?? '').trim();
 
-  if (allowedPasswords.length === 0) {
-    return NextResponse.json({ message: 'APP_PASSWORD or APP_PASSWORDS is not configured' }, { status: 500 });
+  if (!submittedEmail || !submittedPassword) {
+    return NextResponse.json({ message: 'Email and password are required' }, { status: 400 });
   }
 
-  const body = (await request.json().catch(() => null)) as { password?: string } | null;
-  const submittedPassword = body?.password?.trim();
+  const userCount = await getUserCount();
+  const bootstrapEmail = normalizeEmail(process.env.BOOTSTRAP_ADMIN_EMAIL ?? process.env.ADMIN_EMAIL ?? submittedEmail);
+  const bootstrapPassword = String(process.env.BOOTSTRAP_ADMIN_PASSWORD ?? process.env.APP_PASSWORD ?? '').trim();
+  const bootstrapName = String(process.env.BOOTSTRAP_ADMIN_NAME ?? process.env.ADMIN_NAME ?? body?.name ?? 'Admin').trim();
 
-  if (!submittedPassword || !allowedPasswords.includes(submittedPassword)) {
+  if (userCount === 0) {
+    const canBootstrap =
+      bootstrapPassword.length > 0 &&
+      submittedPassword === bootstrapPassword &&
+      submittedEmail === bootstrapEmail;
+
+    if (!canBootstrap) {
+      return NextResponse.json(
+        {
+          message:
+            'No users exist yet. Sign in with BOOTSTRAP_ADMIN_EMAIL + BOOTSTRAP_ADMIN_PASSWORD (or ADMIN_EMAIL + APP_PASSWORD).'
+        },
+        { status: 401 }
+      );
+    }
+
+    await ensureBootstrapAdmin({
+      name: bootstrapName,
+      email: bootstrapEmail,
+      password: bootstrapPassword
+    });
+  }
+
+  const user = await verifyUserCredentials(submittedEmail, submittedPassword);
+
+  if (!user) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
+
+  const token = await createSessionToken({
+    userId: user.id,
+    role: user.role,
+    department: user.department,
+    email: user.email,
+    name: user.name
+  });
 
   const response = NextResponse.json({ success: true });
   response.cookies.set({
     name: AUTH_COOKIE_NAME,
-    value: submittedPassword,
+    value: token,
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
-    maxAge: 60 * 60 * 8
+    maxAge: getSessionMaxAgeSeconds()
   });
 
   return response;

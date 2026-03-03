@@ -8,18 +8,25 @@ import { categoryLabels, categoryValues } from '@/lib/utils/constants';
 import { formatDate } from '@/lib/utils/format';
 import { listContactsForSelection } from '@/modules/contacts/services';
 import { getEventById, getEventFinancials, groupItemsByCategory } from '@/modules/events/services';
+import { canDeleteRecords, canEditContent } from '@/modules/users/permissions';
+import { requireCurrentUserPage } from '@/modules/users/server';
+import { listUserOptions } from '@/modules/users/services';
 
 function getCategoryTotal(items: { fee: number }[]): number {
   return items.reduce((sum, item) => sum + item.fee, 0);
 }
 
 export default async function EventPage({ params }: { params: { id: string } }) {
+  const currentUser = await requireCurrentUserPage();
   const eventId = params.id;
+  const allowEdit = canEditContent(currentUser.role);
+  const allowDelete = canDeleteRecords(currentUser.role);
 
-  const [event, contacts, financials] = await Promise.all([
+  const [event, contacts, financials, userOptions] = await Promise.all([
     getEventById(eventId),
     listContactsForSelection(),
-    getEventFinancials(eventId)
+    getEventFinancials(eventId),
+    allowEdit ? listUserOptions() : Promise.resolve([])
   ]);
 
   if (!event) {
@@ -33,7 +40,7 @@ export default async function EventPage({ params }: { params: { id: string } }) 
       <PageHeader
         title={event.name}
         subtitle={`Date: ${formatDate(event.date)} · Status: ${event.status}`}
-        right={<FinishEventButton eventId={event.id} />}
+        right={allowEdit ? <FinishEventButton eventId={event.id} /> : null}
       />
 
       <BudgetCards
@@ -75,6 +82,9 @@ export default async function EventPage({ params }: { params: { id: string } }) 
               category: contact.category,
               contactName: contact.contactName
             }))}
+            canEdit={allowEdit}
+            canDelete={allowDelete}
+            taskUsers={userOptions}
           />
         );
       })}

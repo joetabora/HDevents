@@ -4,6 +4,7 @@ import { BarChart3, Pencil, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { NewTaskButton } from '@/components/tasks/new-task-button';
 import { deleteSocialPostAction } from '@/modules/social/actions';
 import { isSocialPostStatus, type SocialPostStatus } from '@/lib/types/social';
 import { SocialStatusBadge } from './social-status-badge';
@@ -30,10 +31,18 @@ function formatDateTime(value: Date | string | null): string {
   return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
 
+function computeScore(metrics: { likes: number; comments: number; shares: number; views: number }): number {
+  return Math.round(metrics.likes + metrics.comments * 3 + metrics.shares * 5 + metrics.views / 10);
+}
+
 export function SocialPostCard({
   post,
   showStatusSelect = false,
-  openEditOnCardClick = false
+  openEditOnCardClick = false,
+  allowEdit = true,
+  allowDelete = true,
+  allowPerformance = true,
+  taskUsers = []
 }: {
   post: {
     id: string;
@@ -48,9 +57,18 @@ export function SocialPostCard({
     comments: number;
     shares: number;
     views: number;
+    publicLikes?: number;
+    publicComments?: number;
+    publicShares?: number;
+    publicViews?: number;
+    postUrl?: string | null;
   };
   showStatusSelect?: boolean;
   openEditOnCardClick?: boolean;
+  allowEdit?: boolean;
+  allowDelete?: boolean;
+  allowPerformance?: boolean;
+  taskUsers?: Array<{ id: string; name: string; email: string }>;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [performanceOpen, setPerformanceOpen] = useState(false);
@@ -58,6 +76,17 @@ export function SocialPostCard({
   const router = useRouter();
 
   const status = normalizeStatus(post.status);
+  const hasPublicMetrics =
+    (post.publicLikes ?? 0) > 0 ||
+    (post.publicComments ?? 0) > 0 ||
+    (post.publicShares ?? 0) > 0 ||
+    (post.publicViews ?? 0) > 0;
+  const score = computeScore({
+    likes: hasPublicMetrics ? (post.publicLikes ?? 0) : post.likes,
+    comments: hasPublicMetrics ? (post.publicComments ?? 0) : post.comments,
+    shares: hasPublicMetrics ? (post.publicShares ?? 0) : post.shares,
+    views: hasPublicMetrics ? (post.publicViews ?? 0) : post.views
+  });
 
   async function handleDelete() {
     const confirmed = window.confirm('Delete this post?');
@@ -87,12 +116,12 @@ export function SocialPostCard({
     <>
       <article
         onClick={() => {
-          if (openEditOnCardClick) {
+          if (openEditOnCardClick && allowEdit) {
             setEditOpen(true);
           }
         }}
         className={`rounded-2xl border border-[#27272A] bg-[#111113] p-4 transition duration-200 ease-in-out hover:border-[#3f3f46] ${
-          openEditOnCardClick ? 'cursor-pointer' : ''
+          openEditOnCardClick && allowEdit ? 'cursor-pointer' : ''
         }`}
       >
         <div className="flex items-start justify-between gap-3">
@@ -115,34 +144,59 @@ export function SocialPostCard({
           <div className="rounded-xl border border-[#27272A] bg-[#18181B] px-2 py-1">Views {post.views}</div>
         </div>
 
+        <div className="mt-2 grid grid-cols-4 gap-2 text-center text-xs text-[#A1A1AA]">
+          <div className="rounded-xl border border-[#27272A] bg-[#18181B] px-2 py-1">P Likes {post.publicLikes ?? 0}</div>
+          <div className="rounded-xl border border-[#27272A] bg-[#18181B] px-2 py-1">P Comments {post.publicComments ?? 0}</div>
+          <div className="rounded-xl border border-[#27272A] bg-[#18181B] px-2 py-1">P Shares {post.publicShares ?? 0}</div>
+          <div className="rounded-xl border border-[#27272A] bg-[#18181B] px-2 py-1">P Views {post.publicViews ?? 0}</div>
+        </div>
+
+        <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#FF8124]">Engagement Score: {score}</p>
+
         <div
           className="mt-3 flex flex-wrap items-center justify-between gap-2"
           onClick={(event) => {
             event.stopPropagation();
           }}
         >
-          {showStatusSelect ? <SocialStatusSelect postId={post.id} currentStatus={status} /> : <div />}
+          {showStatusSelect ? <SocialStatusSelect postId={post.id} currentStatus={status} disabled={!allowEdit} /> : <div />}
 
-          <div className="flex items-center gap-1">
-            <Button type="button" variant="secondary" className="px-3 py-1.5" onClick={() => setEditOpen(true)}>
-              <Pencil className="h-3.5 w-3.5" />
-              Edit
-            </Button>
+          <div className="flex flex-wrap items-center gap-1">
+            {allowEdit ? (
+              <Button type="button" variant="secondary" className="px-3 py-1.5" onClick={() => setEditOpen(true)}>
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </Button>
+            ) : null}
 
-            <Button type="button" variant="secondary" className="px-3 py-1.5" onClick={() => setPerformanceOpen(true)}>
-              <BarChart3 className="h-3.5 w-3.5" />
-              Performance
-            </Button>
+            {allowPerformance ? (
+              <Button type="button" variant="secondary" className="px-3 py-1.5" onClick={() => setPerformanceOpen(true)}>
+                <BarChart3 className="h-3.5 w-3.5" />
+                Performance
+              </Button>
+            ) : null}
 
-            <Button type="button" variant="danger" className="px-3 py-1.5" loading={isDeleting} onClick={() => {
-              handleDelete().catch(() => {
-                toast.error('Failed to delete post');
-                setIsDeleting(false);
-              });
-            }}>
-              <Trash2 className="h-3.5 w-3.5" />
-              Delete
-            </Button>
+            {allowDelete ? (
+              <Button
+                type="button"
+                variant="danger"
+                className="px-3 py-1.5"
+                loading={isDeleting}
+                onClick={() => {
+                  handleDelete().catch(() => {
+                    toast.error('Failed to delete post');
+                    setIsDeleting(false);
+                  });
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </Button>
+            ) : null}
+
+            {allowEdit ? (
+              <NewTaskButton label="Task" compact relatedType="SOCIAL" relatedId={post.id} users={taskUsers} />
+            ) : null}
           </div>
         </div>
       </article>
@@ -158,6 +212,7 @@ export function SocialPostCard({
           platforms: post.platforms,
           caption: post.caption,
           hashtags: post.hashtags,
+          postUrl: post.postUrl,
           scheduledFor: post.scheduledFor
         }}
       />
@@ -171,7 +226,8 @@ export function SocialPostCard({
           likes: post.likes,
           comments: post.comments,
           shares: post.shares,
-          views: post.views
+          views: post.views,
+          postUrl: post.postUrl
         }}
       />
     </>

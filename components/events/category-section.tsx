@@ -6,6 +6,7 @@ import { FileCheck, Layers, Music, Paperclip, ShoppingBag, Utensils } from 'luci
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { AddItemModal } from '@/components/modals/add-item-modal';
+import { NewTaskButton } from '@/components/tasks/new-task-button';
 import { StatusBadge } from '@/components/status-badge';
 import { ItemStatusSelect } from '@/components/item-status-select';
 import { Card } from '@/components/ui/card';
@@ -45,6 +46,9 @@ export function CategorySection({
   total,
   eventId,
   contacts,
+  canEdit = true,
+  canDelete = true,
+  taskUsers = [],
   onDocumentDeleted
 }: {
   category: Category;
@@ -53,6 +57,9 @@ export function CategorySection({
   total: number;
   eventId: string;
   contacts: ContactOption[];
+  canEdit?: boolean;
+  canDelete?: boolean;
+  taskUsers?: Array<{ id: string; name: string; email: string }>;
   onDocumentDeleted?: () => void;
 }) {
   const Icon = categoryIcons[category];
@@ -85,7 +92,7 @@ export function CategorySection({
             </p>
           </div>
         </div>
-        <AddItemModal eventId={eventId} category={category} contacts={contacts} />
+        {canEdit ? <AddItemModal eventId={eventId} category={category} contacts={contacts} /> : null}
       </div>
 
       {items.length === 0 ? (
@@ -118,7 +125,16 @@ export function CategorySection({
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3">
-                    <ItemStatusSelect itemId={item.id} currentStatus={parsedStatus} />
+                    <ItemStatusSelect itemId={item.id} currentStatus={parsedStatus} disabled={!canEdit} />
+                    {canEdit ? (
+                      <NewTaskButton
+                        label="Task"
+                        compact
+                        relatedType="VENDOR"
+                        relatedId={item.id}
+                        users={taskUsers}
+                      />
+                    ) : null}
                     <div className="text-right">
                       <p className="text-xs uppercase tracking-wide text-[#A1A1AA]">Fee</p>
                       <p className="text-base font-semibold text-[#FAFAFA]">{formatCurrency(item.fee)}</p>
@@ -144,17 +160,19 @@ export function CategorySection({
                           >
                             {document.fileName}
                           </Link>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleDeleteDocument(document.id).catch(() => {
-                                toast.error('Failed to delete document');
-                              });
-                            }}
-                            className="text-xs font-semibold text-rose-400 hover:text-rose-300"
-                          >
-                            Delete
-                          </button>
+                          {canDelete ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleDeleteDocument(document.id).catch(() => {
+                                  toast.error('Failed to delete document');
+                                });
+                              }}
+                              className="text-xs font-semibold text-rose-400 hover:text-rose-300"
+                            >
+                              Delete
+                            </button>
+                          ) : null}
                         </li>
                       ))}
                     </ul>

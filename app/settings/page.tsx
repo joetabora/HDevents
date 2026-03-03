@@ -1,8 +1,15 @@
 import { Cog } from 'lucide-react';
+import Link from 'next/link';
 import { PageHeader } from '@/components/layout/page-header';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { canManageUsers } from '@/modules/users/permissions';
+import { requireCurrentUserPage } from '@/modules/users/server';
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const user = await requireCurrentUserPage();
+  const allowUserAdmin = canManageUsers(user.role);
+
   return (
     <div className="space-y-10">
       <PageHeader
@@ -19,6 +26,13 @@ export default function SettingsPage() {
           <p className="mt-1 text-sm text-[#A1A1AA]">
             This area is intentionally reserved for configuration and future feature toggles.
           </p>
+          {allowUserAdmin ? (
+            <div className="mt-3">
+              <Link href="/users">
+                <Button variant="secondary">Manage Users</Button>
+              </Link>
+            </div>
+          ) : null}
         </div>
       </Card>
     </div>
