@@ -1,3 +1,5 @@
+import type { SocialPost } from '@prisma/client';
+
 export const SOCIAL_POST_STATUSES = ['IDEA', 'FILMING', 'EDITING', 'SCHEDULED', 'POSTED'] as const;
 export const SOCIAL_POST_TYPES = ['USED_BIKE', 'BRAND', 'EVENT', 'COMMUNITY', 'PROMO'] as const;
 export const SOCIAL_PLATFORMS = ['FACEBOOK', 'INSTAGRAM', 'TIKTOK', 'YOUTUBE'] as const;
@@ -5,6 +7,8 @@ export const SOCIAL_PLATFORMS = ['FACEBOOK', 'INSTAGRAM', 'TIKTOK', 'YOUTUBE'] a
 export type SocialPostStatus = (typeof SOCIAL_POST_STATUSES)[number];
 export type SocialPostType = (typeof SOCIAL_POST_TYPES)[number];
 export type SocialPlatform = (typeof SOCIAL_PLATFORMS)[number];
+
+export type SocialPostRecord = SocialPost;
 
 export function isSocialPostStatus(value: string): value is SocialPostStatus {
   return SOCIAL_POST_STATUSES.includes(value as SocialPostStatus);

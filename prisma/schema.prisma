@@ -60,6 +60,8 @@ model SocialPost {
   platforms    String[]
   type         String
   status       String   @default("IDEA")
+  caption      String?
+  hashtags     String?
   scheduledFor DateTime?
   postedAt     DateTime?
   likes        Int      @default(0)

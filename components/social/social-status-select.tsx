@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { updateSocialPostStatusAction } from '@/modules/social/actions';
 import { SOCIAL_POST_STATUSES, type SocialPostStatus } from '@/lib/types/social';
 
 export function SocialStatusSelect({ postId, currentStatus }: { postId: string; currentStatus: SocialPostStatus }) {
@@ -14,20 +15,20 @@ export function SocialStatusSelect({ postId, currentStatus }: { postId: string; 
     setStatus(nextStatus);
     setIsPending(true);
 
-    const response = await fetch(`/api/social/posts/${postId}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: nextStatus })
-    });
+    const formData = new FormData();
+    formData.set('id', postId);
+    formData.set('status', nextStatus);
 
-    if (!response.ok) {
+    const result = await updateSocialPostStatusAction(formData);
+
+    if (!result.success) {
       setStatus(currentStatus);
-      toast.error('Unable to update post status');
+      toast.error(result.message);
       setIsPending(false);
       return;
     }
 
-    toast.success('Post status updated');
+    toast.success(result.message);
     router.refresh();
     setIsPending(false);
   }

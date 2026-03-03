@@ -1,10 +1,9 @@
 import { Film, Lightbulb, Scissors, Send, Upload } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
-import { SocialStatusBadge } from '@/components/social/social-status-badge';
-import { SocialStatusSelect } from '@/components/social/social-status-select';
+import { NewSocialPostButton } from '@/components/social/new-social-post-button';
+import { SocialPostCard } from '@/components/social/social-post-card';
 import { Card } from '@/components/ui/card';
 import { isSocialPostStatus, SOCIAL_POST_STATUSES, type SocialPostStatus } from '@/lib/types/social';
-import { formatDate } from '@/lib/utils/format';
 import { getPipelinePostsGrouped } from '@/modules/social/queries';
 
 export const dynamic = 'force-dynamic';
@@ -29,6 +28,7 @@ export default async function SocialPipelinePage() {
       <PageHeader
         title="Content Pipeline"
         subtitle="Manage creative flow from idea capture through final publish execution."
+        right={<NewSocialPostButton />}
       />
 
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
@@ -52,24 +52,25 @@ export default async function SocialPipelinePage() {
                     const postStatus = normalizeStatus(post.status);
 
                     return (
-                      <article key={post.id} className="rounded-2xl border border-[#27272A] bg-[#111113] p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-[#FAFAFA]">{post.title}</p>
-                            <p className="mt-1 text-xs text-[#A1A1AA]">{post.platforms.join(', ')}</p>
-                          </div>
-                          <SocialStatusBadge status={postStatus} />
-                        </div>
-
-                        <div className="mt-3 grid gap-1 text-xs text-[#A1A1AA]">
-                          <p>Type: {post.type}</p>
-                          <p>Scheduled: {post.scheduledFor ? formatDate(post.scheduledFor) : 'Not scheduled'}</p>
-                        </div>
-
-                        <div className="mt-3">
-                          <SocialStatusSelect postId={post.id} currentStatus={postStatus} />
-                        </div>
-                      </article>
+                      <SocialPostCard
+                        key={post.id}
+                        post={{
+                          id: post.id,
+                          title: post.title,
+                          type: post.type,
+                          status: postStatus,
+                          platforms: post.platforms,
+                          caption: post.caption,
+                          hashtags: post.hashtags,
+                          scheduledFor: post.scheduledFor,
+                          likes: post.likes,
+                          comments: post.comments,
+                          shares: post.shares,
+                          views: post.views
+                        }}
+                        showStatusSelect
+                        openEditOnCardClick
+                      />
                     );
                   })}
                 </div>

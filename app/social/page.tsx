@@ -1,7 +1,8 @@
 import { AlertTriangle, CalendarClock, Flame, Gauge, Goal } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
+import { NewSocialPostButton } from '@/components/social/new-social-post-button';
+import { SocialPostCard } from '@/components/social/social-post-card';
 import { Card } from '@/components/ui/card';
-import { formatDate } from '@/lib/utils/format';
 import { getSocialDashboardSummary } from '@/modules/social/queries';
 
 export const dynamic = 'force-dynamic';
@@ -15,6 +16,7 @@ export default async function SocialDashboardPage() {
       <PageHeader
         title="Social Control Center"
         subtitle="Monitor momentum, posting cadence, and pipeline pressure across the next seven days."
+        right={<NewSocialPostButton />}
       />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -71,16 +73,29 @@ export default async function SocialDashboardPage() {
           {summary.upcomingScheduledPosts.length === 0 ? (
             <p className="text-sm text-[#A1A1AA]">No scheduled posts in the next week.</p>
           ) : (
-            <ul className="space-y-2">
+            <div className="space-y-3">
               {summary.upcomingScheduledPosts.map((post) => (
-                <li key={post.id} className="rounded-2xl border border-[#27272A] bg-[#111113] px-4 py-3">
-                  <p className="text-sm font-semibold text-[#FAFAFA]">{post.title}</p>
-                  <p className="mt-1 text-xs text-[#A1A1AA]">
-                    {post.platforms.join(', ')} • {post.type} • {post.scheduledFor ? formatDate(post.scheduledFor) : 'No date'}
-                  </p>
-                </li>
+                <SocialPostCard
+                  key={post.id}
+                  post={{
+                    id: post.id,
+                    title: post.title,
+                    type: post.type,
+                    status: post.status,
+                    platforms: post.platforms,
+                    caption: post.caption,
+                    hashtags: post.hashtags,
+                    scheduledFor: post.scheduledFor,
+                    likes: post.likes,
+                    comments: post.comments,
+                    shares: post.shares,
+                    views: post.views
+                  }}
+                  showStatusSelect
+                  openEditOnCardClick
+                />
               ))}
-            </ul>
+            </div>
           )}
         </Card>
       </section>
