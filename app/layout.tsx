@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { AppShell } from '@/components/app-shell';
 import { AppToaster } from '@/components/providers/app-toaster';
 
@@ -12,6 +13,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
+        <LoadingScreen />
         <AppShell>{children}</AppShell>
         <AppToaster />
       </body>
