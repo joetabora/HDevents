@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CalendarDays, ChevronLeft, ChevronRight, LayoutDashboard, Settings, Users } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, LayoutDashboard, Radio, Settings, Users } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { LogoutButton } from './logout-button';
 
 const navLinks = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/events', label: 'Events', icon: CalendarDays },
+  { href: '/social', label: 'Social', icon: Radio },
   { href: '/contacts', label: 'Contacts', icon: Users },
   { href: '/settings', label: 'Settings', icon: Settings }
 ];

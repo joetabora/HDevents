@@ -23,6 +23,7 @@ modules/
   events/
   contacts/
   documents/
+  social/
   marketing/
   automation/
 prisma/
@@ -55,6 +56,7 @@ public/
   - Edit and delete contacts
   - View associated past events
 - Module placeholders:
+  - `modules/social/automation`
   - `modules/marketing`
   - `modules/automation`
 

@@ -53,3 +53,19 @@ model Document {
   itemId     String
   uploadedAt DateTime @default(now())
 }
+
+model SocialPost {
+  id           String   @id @default(uuid())
+  title        String
+  platforms    String[]
+  type         String
+  status       String   @default("IDEA")
+  scheduledFor DateTime?
+  postedAt     DateTime?
+  likes        Int      @default(0)
+  comments     Int      @default(0)
+  shares       Int      @default(0)
+  views        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
