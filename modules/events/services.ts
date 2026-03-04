@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db/prisma';
 import { type Category, type EventStatus, type ItemStatus } from '@/lib/types/domain';
 import { saveItemDocuments, resolveFileAbsolutePath } from '@/modules/documents/services';
 import type { UserRole } from '@/modules/users/constants';
-import { generateEventArchiveVersion } from './services/archiveGenerator';
+import { generateEventArchiveVersion, regenerateEventArchiveFiles } from './services/archiveGenerator';
 
 export type EventWithItems = Prisma.EventGetPayload<{
   include: {
@@ -492,6 +492,11 @@ export async function readEventArchiveAsset(params: {
         select: {
           name: true
         }
+      },
+      generatedBy: {
+        select: {
+          name: true
+        }
       }
     }
   });
@@ -501,8 +506,36 @@ export async function readEventArchiveAsset(params: {
   }
 
   const filePath = params.kind === 'zip' ? archive.archiveUrl : archive.summaryPdfUrl;
-  const absolutePath = resolveFileAbsolutePath(filePath);
-  const buffer = await readFile(absolutePath);
+  let buffer: Buffer;
+
+  try {
+    buffer = await readFile(resolveFileAbsolutePath(filePath));
+  } catch (error) {
+    const ioError = error as NodeJS.ErrnoException;
+    if (ioError.code !== 'ENOENT') {
+      throw error;
+    }
+
+    const regenerated = await regenerateEventArchiveFiles({
+      eventId: archive.eventId,
+      version: archive.version,
+      generatedByName: archive.generatedBy?.name ?? 'System'
+    });
+
+    await prisma.eventArchive.update({
+      where: { id: archive.id },
+      data: {
+        archiveUrl: regenerated.archiveUrl,
+        summaryPdfUrl: regenerated.summaryPdfUrl,
+        budgetCsvUrl: regenerated.budgetCsvUrl,
+        vendorCsvUrl: regenerated.vendorCsvUrl,
+        socialCsvUrl: regenerated.socialCsvUrl
+      }
+    });
+
+    const refreshedPath = params.kind === 'zip' ? regenerated.archiveUrl : regenerated.summaryPdfUrl;
+    buffer = await readFile(resolveFileAbsolutePath(refreshedPath));
+  }
 
   return {
     buffer,

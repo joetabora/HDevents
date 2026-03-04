@@ -289,6 +289,62 @@ export async function generateEventArchiveVersion(params: {
   generatedById: string;
   generatedByName: string;
 }) {
+  const artifacts = await generateEventArchiveArtifacts({
+    eventId: params.eventId,
+    version: params.version,
+    generatedByName: params.generatedByName
+  });
+
+  const archive = await prisma.eventArchive.create({
+    data: {
+      eventId: params.eventId,
+      version: params.version,
+      generatedById: params.generatedById,
+      archiveUrl: artifacts.archiveUrl,
+      summaryPdfUrl: artifacts.summaryPdfUrl,
+      budgetCsvUrl: artifacts.budgetCsvUrl,
+      vendorCsvUrl: artifacts.vendorCsvUrl,
+      socialCsvUrl: artifacts.socialCsvUrl
+    },
+    include: {
+      generatedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
+    }
+  });
+
+  return archive;
+}
+
+export async function regenerateEventArchiveFiles(params: {
+  eventId: string;
+  version: number;
+  generatedByName: string;
+}): Promise<{
+  archiveUrl: string;
+  summaryPdfUrl: string;
+  budgetCsvUrl: string;
+  vendorCsvUrl: string;
+  socialCsvUrl: string;
+}> {
+  return generateEventArchiveArtifacts(params);
+}
+
+async function generateEventArchiveArtifacts(params: {
+  eventId: string;
+  version: number;
+  generatedByName: string;
+}): Promise<{
+  archiveUrl: string;
+  summaryPdfUrl: string;
+  budgetCsvUrl: string;
+  vendorCsvUrl: string;
+  socialCsvUrl: string;
+}> {
   const event = await prisma.event.findUnique({
     where: { id: params.eventId },
     include: {
@@ -483,27 +539,11 @@ export async function generateEventArchiveVersion(params: {
     buffer: zipBuffer
   });
 
-  const archive = await prisma.eventArchive.create({
-    data: {
-      eventId: event.id,
-      version: params.version,
-      generatedById: params.generatedById,
-      archiveUrl: archiveStored.dbPath,
-      summaryPdfUrl: summaryStored.dbPath,
-      budgetCsvUrl: budgetStored.dbPath,
-      vendorCsvUrl: vendorStored.dbPath,
-      socialCsvUrl: socialStored.dbPath
-    },
-    include: {
-      generatedBy: {
-        select: {
-          id: true,
-          name: true,
-          email: true
-        }
-      }
-    }
-  });
-
-  return archive;
+  return {
+    archiveUrl: archiveStored.dbPath,
+    summaryPdfUrl: summaryStored.dbPath,
+    budgetCsvUrl: budgetStored.dbPath,
+    vendorCsvUrl: vendorStored.dbPath,
+    socialCsvUrl: socialStored.dbPath
+  };
 }
