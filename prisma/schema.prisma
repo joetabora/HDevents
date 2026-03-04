@@ -16,8 +16,16 @@ model Event {
   items     Item[]
   createdById String?
   assignedToId String?
+  finalizedById String?
+  completedAt DateTime?
+  finalAttendance Int?
+  finalBudgetUsed Float?
+  finalNotes String?
+  archiveVersion Int @default(0)
   createdBy User? @relation("EventCreator", fields: [createdById], references: [id], onDelete: SetNull)
   assignedTo User? @relation("EventAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  finalizedBy User? @relation("EventFinalizer", fields: [finalizedById], references: [id], onDelete: SetNull)
+  archives EventArchive[]
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 }
@@ -96,6 +104,8 @@ model User {
   socialPosts SocialPost[] @relation("SocialPostAuthor")
   eventsCreated Event[] @relation("EventCreator")
   eventsAssigned Event[] @relation("EventAssignee")
+  eventsFinalized Event[] @relation("EventFinalizer")
+  generatedEventArchives EventArchive[] @relation("EventArchiveGenerator")
   createdTasks Task[] @relation("TaskCreator")
   assignedTasks Task[] @relation("TaskAssignee")
   activityLogs ActivityLog[]
@@ -137,4 +147,21 @@ model GlobalDocument {
   uploadedById String?
   uploadedAt  DateTime @default(now())
   uploadedBy  User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+}
+
+model EventArchive {
+  id            String   @id @default(uuid())
+  eventId        String
+  version        Int
+  generatedAt    DateTime @default(now())
+  generatedById  String?
+  archiveUrl     String
+  summaryPdfUrl  String
+  budgetCsvUrl   String
+  vendorCsvUrl   String
+  socialCsvUrl   String
+  event          Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  generatedBy    User?   @relation("EventArchiveGenerator", fields: [generatedById], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, version])
 }

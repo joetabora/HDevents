@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-export type StorageKind = 'uploads' | 'reports';
+export type StorageKind = 'uploads' | 'reports' | 'archives';
 
 const LOCAL_PUBLIC_ROOT = path.join(process.cwd(), 'public');
 const TMP_ROOT = path.join('/tmp', 'hdevents');
@@ -20,7 +20,7 @@ export function getStorageDirectory(kind: StorageKind): string {
 }
 
 export function toAbsolutePath(filePath: string): string {
-  if (filePath.startsWith('/uploads/') || filePath.startsWith('/reports/')) {
+  if (filePath.startsWith('/uploads/') || filePath.startsWith('/reports/') || filePath.startsWith('/archives/')) {
     return path.join(process.cwd(), 'public', filePath.slice(1));
   }
 

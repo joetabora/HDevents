@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { AdminControls } from '@/components/events/admin-controls';
 import { BudgetCards } from '@/components/events/budget-cards';
 import { CategorySection } from '@/components/events/category-section';
 import { PageHeader } from '@/components/layout/page-header';
@@ -12,27 +14,38 @@ import { canDeleteRecords, canEditContent } from '@/modules/users/permissions';
 import { requireCurrentUserPage } from '@/modules/users/server';
 import { listUserOptions } from '@/modules/users/services';
 
-function getCategoryTotal(items: { fee: number }[]): number {
+function getCategoryTotal(items: Array<{ fee: number }>): number {
   return items.reduce((sum, item) => sum + item.fee, 0);
 }
 
-export default async function EventPage({ params }: { params: { id: string } }) {
+export default async function EventPage({
+  params,
+  searchParams
+}: {
+  params: { id: string };
+  searchParams?: { edit?: string };
+}) {
   const currentUser = await requireCurrentUserPage();
   const eventId = params.id;
-  const allowEdit = canEditContent(currentUser.role);
-  const allowDelete = canDeleteRecords(currentUser.role);
+  const allowEditByRole = canEditContent(currentUser.role);
+  const isAdmin = currentUser.role === 'ADMIN';
 
   const [event, contacts, financials, userOptions] = await Promise.all([
     getEventById(eventId),
     listContactsForSelection(),
     getEventFinancials(eventId),
-    allowEdit ? listUserOptions() : Promise.resolve([])
+    allowEditByRole ? listUserOptions() : Promise.resolve([])
   ]);
 
   if (!event) {
     notFound();
   }
 
+  const isCompleted = event.status === 'COMPLETED';
+  const adminEditEnabled = isAdmin && searchParams?.edit === '1';
+  const allowEdit = allowEditByRole && (!isCompleted || adminEditEnabled);
+  const allowDelete = canDeleteRecords(currentUser.role) && (!isCompleted || adminEditEnabled);
+  const allowFinalize = allowEditByRole && !isCompleted;
   const groupedItems = groupItemsByCategory(event.items);
 
   return (
@@ -40,14 +53,18 @@ export default async function EventPage({ params }: { params: { id: string } }) 
       <PageHeader
         title={event.name}
         subtitle={`Date: ${formatDate(event.date)} · Status: ${event.status}`}
-        right={allowEdit ? <FinishEventButton eventId={event.id} /> : null}
+        right={allowFinalize ? <FinishEventButton eventId={event.id} /> : null}
       />
 
-      <BudgetCards
-        totalBudget={event.budget}
-        allocated={financials.totalAllocated}
-        remaining={financials.remainingBudget}
-      />
+      {isCompleted && isAdmin ? <AdminControls eventId={event.id} editingEnabled={adminEditEnabled} /> : null}
+
+      {isCompleted && isAdmin && adminEditEnabled ? (
+        <Card className="border-[#FF6A00]/40 bg-[#20170f] text-sm text-[#FFD6B3]">
+          This event is completed. You are editing historical data. A new archive version should be generated.
+        </Card>
+      ) : null}
+
+      <BudgetCards totalBudget={event.budget} allocated={financials.totalAllocated} remaining={financials.remainingBudget} />
 
       {categoryValues.map((category) => {
         const items = groupedItems[category];
@@ -89,9 +106,48 @@ export default async function EventPage({ params }: { params: { id: string } }) 
         );
       })}
 
+      {isCompleted ? (
+        <Card>
+          <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#FAFAFA]">Archive History</h2>
+          {event.archives.length === 0 ? (
+            <p className="mt-2 text-sm text-[#A1A1AA]">No archive versions generated yet.</p>
+          ) : (
+            <div className="mt-4 space-y-2">
+              {event.archives.map((archive) => (
+                <div
+                  key={archive.id}
+                  className="flex flex-col gap-3 rounded-2xl border border-[#27272A] bg-[#111113] p-3 md:flex-row md:items-center md:justify-between"
+                >
+                  <p className="text-sm text-[#FAFAFA]">
+                    Version {archive.version} - Generated {formatDate(archive.generatedAt)} - by {archive.generatedBy?.name ?? 'Unknown'}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/api/events/${event.id}/archives/${archive.id}/download?kind=zip`}
+                      target="_blank"
+                      className="rounded-2xl border border-[#27272A] bg-[#111113] px-3 py-1.5 text-xs font-semibold text-[#FAFAFA] hover:border-[#FF6A00] hover:text-[#FF8124]"
+                    >
+                      Download ZIP
+                    </Link>
+                    <Link
+                      href={`/api/events/${event.id}/archives/${archive.id}/download?kind=pdf`}
+                      target="_blank"
+                      className="rounded-2xl border border-[#27272A] bg-[#111113] px-3 py-1.5 text-xs font-semibold text-[#FAFAFA] hover:border-[#FF6A00] hover:text-[#FF8124]"
+                    >
+                      Download PDF
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      ) : null}
+
       <Card className="text-xs text-[#A1A1AA]">
         Files are stored locally in <code className="rounded bg-[#111113] px-1.5 py-0.5">/public/uploads</code> and reports in{' '}
-        <code className="rounded bg-[#111113] px-1.5 py-0.5">/public/reports</code> for local development.
+        <code className="rounded bg-[#111113] px-1.5 py-0.5">/public/reports</code> and{' '}
+        <code className="rounded bg-[#111113] px-1.5 py-0.5">/public/archives</code> for local development.
       </Card>
     </div>
   );

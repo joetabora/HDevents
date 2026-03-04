@@ -1,6 +1,6 @@
 import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
-import { createItemForEvent } from '@/modules/events/services';
+import { assertEventEditableByRole, createItemForEvent } from '@/modules/events/services';
 import { parseCategory, parseItemStatus } from '@/modules/events/validators';
 import { logActivity } from '@/modules/users/activity';
 import { requireEditPermission } from '@/modules/users/server';
@@ -28,6 +28,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
 
     const files = formData.getAll('documents').filter((entry): entry is File => entry instanceof File && entry.size > 0);
+    const context = await assertEventEditableByRole({
+      eventId: params.id,
+      role: user.role
+    });
 
     const newContactBusinessName = String(formData.get('newContactBusinessName') ?? '').trim();
 
@@ -48,6 +52,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
       },
       files
     });
+
+    if (context.status === 'COMPLETED' && user.role === 'ADMIN') {
+      await logActivity({
+        userId: user.id,
+        action: 'EVENT_EDITED_AFTER_COMPLETION',
+        entityType: 'EVENT',
+        entityId: params.id
+      });
+    }
 
     await logActivity({
       userId: user.id,

@@ -198,7 +198,7 @@ export async function getExecutiveOverview() {
     prisma.event.count({
       where: {
         status: {
-          in: ['PLANNING', 'READY']
+          in: ['PLANNING', 'ACTIVE']
         }
       }
     }),

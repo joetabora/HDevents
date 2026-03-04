@@ -1,9 +1,10 @@
+import { readFile } from 'node:fs/promises';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db/prisma';
 import { type Category, type EventStatus, type ItemStatus } from '@/lib/types/domain';
-import { writeBinaryToStorage } from '@/lib/utils/file-storage';
-import { saveItemDocuments } from '@/modules/documents/services';
-import { buildEventReportPdf } from './report';
+import { saveItemDocuments, resolveFileAbsolutePath } from '@/modules/documents/services';
+import type { UserRole } from '@/modules/users/constants';
+import { generateEventArchiveVersion } from './services/archiveGenerator';
 
 export type EventWithItems = Prisma.EventGetPayload<{
   include: {
@@ -13,6 +14,25 @@ export type EventWithItems = Prisma.EventGetPayload<{
         documents: true;
       };
       orderBy: { createdAt: 'desc' };
+    };
+    finalizedBy: {
+      select: {
+        id: true;
+        name: true;
+        email: true;
+      };
+    };
+    archives: {
+      orderBy: { version: 'desc' };
+      include: {
+        generatedBy: {
+          select: {
+            id: true;
+            name: true;
+            email: true;
+          };
+        };
+      };
     };
   };
 }>;
@@ -79,6 +99,25 @@ export async function getEventById(eventId: string): Promise<EventWithItems | nu
           documents: true
         },
         orderBy: { createdAt: 'desc' }
+      },
+      finalizedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      },
+      archives: {
+        orderBy: { version: 'desc' },
+        include: {
+          generatedBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          }
+        }
       }
     }
   });
@@ -192,33 +231,285 @@ export async function updateEventBudget(eventId: string, budget: number) {
   });
 }
 
-export async function finishEventAndGenerateReport(eventId: string): Promise<{ pdfBytes: Uint8Array; fileName: string }> {
-  const event = await getEventById(eventId);
+export async function getEventMutationContext(eventId: string): Promise<{ eventId: string; status: EventStatus }> {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: {
+      id: true,
+      status: true
+    }
+  });
 
   if (!event) {
     throw new Error('Event not found');
   }
 
-  const { totalAllocated, remainingBudget } = await getEventFinancials(eventId);
+  return {
+    eventId: event.id,
+    status: event.status as EventStatus
+  };
+}
 
-  await updateEventStatus(eventId, 'FINISHED');
-
-  const pdfBytes = await buildEventReportPdf({
-    event,
-    totalAllocated,
-    remainingBudget
+export async function getItemEventMutationContext(itemId: string): Promise<{ eventId: string; status: EventStatus }> {
+  const item = await prisma.item.findUnique({
+    where: { id: itemId },
+    select: {
+      event: {
+        select: {
+          id: true,
+          status: true
+        }
+      }
+    }
   });
 
-  const baseFileName = `${event.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-report.pdf`;
+  if (!item?.event) {
+    throw new Error('Item not found');
+  }
 
-  await writeBinaryToStorage({
-    kind: 'reports',
-    originalFileName: baseFileName,
-    buffer: Buffer.from(pdfBytes)
+  return {
+    eventId: item.event.id,
+    status: item.event.status as EventStatus
+  };
+}
+
+export async function getDocumentEventMutationContext(documentId: string): Promise<{ eventId: string; status: EventStatus }> {
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+    select: {
+      item: {
+        select: {
+          event: {
+            select: {
+              id: true,
+              status: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!document?.item.event) {
+    throw new Error('Document not found');
+  }
+
+  return {
+    eventId: document.item.event.id,
+    status: document.item.event.status as EventStatus
+  };
+}
+
+export async function assertEventEditableByRole(params: { eventId: string; role: UserRole }): Promise<{ eventId: string; status: EventStatus }> {
+  const context = await getEventMutationContext(params.eventId);
+  if (context.status === 'COMPLETED' && params.role !== 'ADMIN') {
+    throw new Error('Completed events are locked for non-admin users');
+  }
+  return context;
+}
+
+export async function assertItemEventEditableByRole(params: { itemId: string; role: UserRole }): Promise<{ eventId: string; status: EventStatus }> {
+  const context = await getItemEventMutationContext(params.itemId);
+  if (context.status === 'COMPLETED' && params.role !== 'ADMIN') {
+    throw new Error('Completed events are locked for non-admin users');
+  }
+  return context;
+}
+
+function sanitizeFileSegment(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'event';
+}
+
+function archiveFileName(eventName: string, version: number, suffix: string): string {
+  return `${sanitizeFileSegment(eventName)}-v${version}-${suffix}`;
+}
+
+export async function finalizeEvent(params: {
+  eventId: string;
+  finalizedById: string;
+  finalizedByName: string;
+  finalAttendance?: number | null;
+  finalBudgetUsed?: number | null;
+  finalNotes?: string | null;
+}) {
+  const event = await prisma.event.findUnique({
+    where: { id: params.eventId },
+    select: {
+      id: true,
+      status: true,
+      archiveVersion: true
+    }
+  });
+
+  if (!event) {
+    throw new Error('Event not found');
+  }
+
+  if (event.status === 'COMPLETED') {
+    throw new Error('Event is already completed');
+  }
+
+  const nextVersion = event.archiveVersion + 1;
+
+  const updatedEvent = await prisma.event.update({
+    where: { id: params.eventId },
+    data: {
+      status: 'COMPLETED',
+      completedAt: new Date(),
+      finalizedById: params.finalizedById,
+      finalAttendance: params.finalAttendance ?? null,
+      finalBudgetUsed: params.finalBudgetUsed ?? null,
+      finalNotes: params.finalNotes?.trim() ? params.finalNotes.trim() : null,
+      archiveVersion: nextVersion
+    }
+  });
+
+  const archive = await generateEventArchiveVersion({
+    eventId: params.eventId,
+    version: nextVersion,
+    generatedById: params.finalizedById,
+    generatedByName: params.finalizedByName
   });
 
   return {
-    pdfBytes,
-    fileName: baseFileName
+    event: updatedEvent,
+    archive
+  };
+}
+
+export async function reopenEvent(eventId: string) {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: {
+      id: true,
+      status: true
+    }
+  });
+
+  if (!event) {
+    throw new Error('Event not found');
+  }
+
+  if (event.status !== 'COMPLETED') {
+    throw new Error('Only completed events can be reopened');
+  }
+
+  return prisma.event.update({
+    where: { id: eventId },
+    data: {
+      status: 'ACTIVE',
+      completedAt: null,
+      finalizedById: null,
+      finalAttendance: null,
+      finalBudgetUsed: null,
+      finalNotes: null
+    }
+  });
+}
+
+export async function regenerateEventArchive(params: {
+  eventId: string;
+  generatedById: string;
+  generatedByName: string;
+}) {
+  const event = await prisma.event.findUnique({
+    where: { id: params.eventId },
+    select: {
+      id: true,
+      status: true
+    }
+  });
+
+  if (!event) {
+    throw new Error('Event not found');
+  }
+
+  if (event.status !== 'COMPLETED') {
+    throw new Error('Only completed events can generate archives');
+  }
+
+  const updated = await prisma.event.update({
+    where: { id: params.eventId },
+    data: {
+      archiveVersion: {
+        increment: 1
+      }
+    },
+    select: {
+      archiveVersion: true
+    }
+  });
+
+  const archive = await generateEventArchiveVersion({
+    eventId: params.eventId,
+    version: updated.archiveVersion,
+    generatedById: params.generatedById,
+    generatedByName: params.generatedByName
+  });
+
+  return {
+    version: updated.archiveVersion,
+    archive
+  };
+}
+
+export async function listEventArchives(eventId: string) {
+  return prisma.eventArchive.findMany({
+    where: { eventId },
+    orderBy: { version: 'desc' },
+    include: {
+      generatedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      },
+      event: {
+        select: {
+          name: true
+        }
+      }
+    }
+  });
+}
+
+export async function readEventArchiveAsset(params: {
+  eventId: string;
+  archiveId: string;
+  kind: 'zip' | 'pdf';
+}): Promise<{ buffer: Buffer; contentType: string; fileName: string }> {
+  const archive = await prisma.eventArchive.findFirst({
+    where: {
+      id: params.archiveId,
+      eventId: params.eventId
+    },
+    include: {
+      event: {
+        select: {
+          name: true
+        }
+      }
+    }
+  });
+
+  if (!archive) {
+    throw new Error('Archive not found');
+  }
+
+  const filePath = params.kind === 'zip' ? archive.archiveUrl : archive.summaryPdfUrl;
+  const absolutePath = resolveFileAbsolutePath(filePath);
+  const buffer = await readFile(absolutePath);
+
+  return {
+    buffer,
+    contentType: params.kind === 'zip' ? 'application/zip' : 'application/pdf',
+    fileName:
+      params.kind === 'zip'
+        ? archiveFileName(archive.event.name, archive.version, 'archive.zip')
+        : archiveFileName(archive.event.name, archive.version, 'summary.pdf')
   };
 }

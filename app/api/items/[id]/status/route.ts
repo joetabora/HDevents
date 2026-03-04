@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { updateItemStatus } from '@/modules/events/services';
+import { assertItemEventEditableByRole, updateItemStatus } from '@/modules/events/services';
 import { parseItemStatus } from '@/modules/events/validators';
 import { logActivity } from '@/modules/users/activity';
 import { requireEditPermission } from '@/modules/users/server';
@@ -17,7 +17,20 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   try {
     const user = await requireEditPermission();
     const status = parseItemStatus(statusInput);
+    const context = await assertItemEventEditableByRole({
+      itemId,
+      role: user.role
+    });
     const updated = await updateItemStatus(itemId, status);
+
+    if (context.status === 'COMPLETED' && user.role === 'ADMIN') {
+      await logActivity({
+        userId: user.id,
+        action: 'EVENT_EDITED_AFTER_COMPLETION',
+        entityType: 'EVENT',
+        entityId: context.eventId
+      });
+    }
 
     if (updated.status === 'LOCKED_IN') {
       await logActivity({

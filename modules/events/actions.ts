@@ -4,7 +4,17 @@ import { revalidatePath } from 'next/cache';
 import { deleteDocument } from '@/modules/documents/services';
 import { logActivity } from '@/modules/users/activity';
 import { requireBudgetPermission, requireDeletePermission, requireEditPermission } from '@/modules/users/server';
-import { createEvent, createItemForEvent, deleteEvent, updateEventBudget } from './services';
+import {
+  assertEventEditableByRole,
+  createEvent,
+  createItemForEvent,
+  deleteEvent,
+  finalizeEvent,
+  getDocumentEventMutationContext,
+  regenerateEventArchive,
+  reopenEvent,
+  updateEventBudget
+} from './services';
 import { parseCategory, parseItemStatus } from './validators';
 
 function parseBudget(input: string): number {
@@ -28,6 +38,20 @@ function parseFee(input: string): number {
   if (Number.isNaN(value) || value < 0) {
     throw new Error('Fee must be a valid positive number');
   }
+  return value;
+}
+
+function parseOptionalNumber(input: FormDataEntryValue | null): number | null {
+  const raw = String(input ?? '').trim();
+  if (!raw) {
+    return null;
+  }
+
+  const value = Number(raw);
+  if (Number.isNaN(value) || value < 0) {
+    throw new Error('Numeric values must be a valid positive number');
+  }
+
   return value;
 }
 
@@ -86,6 +110,10 @@ export async function createItemAction(formData: FormData): Promise<void> {
   }
 
   const files = formData.getAll('documents').filter((entry): entry is File => entry instanceof File);
+  const context = await assertEventEditableByRole({
+    eventId,
+    role: user.role
+  });
 
   await createItemForEvent({
     eventId,
@@ -105,6 +133,15 @@ export async function createItemAction(formData: FormData): Promise<void> {
     files
   });
 
+  if (context.status === 'COMPLETED' && user.role === 'ADMIN') {
+    await logActivity({
+      userId: user.id,
+      action: 'EVENT_EDITED_AFTER_COMPLETION',
+      entityType: 'EVENT',
+      entityId: eventId
+    });
+  }
+
   await logActivity({
     userId: user.id,
     action: 'ITEM_CREATED',
@@ -118,7 +155,7 @@ export async function createItemAction(formData: FormData): Promise<void> {
 }
 
 export async function deleteDocumentAction(formData: FormData): Promise<void> {
-  await requireDeletePermission();
+  const user = await requireDeletePermission();
   const documentId = String(formData.get('documentId') ?? '').trim();
   const eventPath = String(formData.get('eventPath') ?? '').trim();
 
@@ -126,7 +163,19 @@ export async function deleteDocumentAction(formData: FormData): Promise<void> {
     throw new Error('Missing document id');
   }
 
+  const context = await getDocumentEventMutationContext(documentId);
+
   await deleteDocument(documentId);
+
+  if (context.status === 'COMPLETED') {
+    await logActivity({
+      userId: user.id,
+      action: 'EVENT_EDITED_AFTER_COMPLETION',
+      entityType: 'EVENT',
+      entityId: context.eventId
+    });
+  }
+
   if (eventPath) {
     revalidatePath(eventPath);
   }
@@ -142,7 +191,21 @@ export async function updateEventBudgetAction(formData: FormData): Promise<{ suc
       throw new Error('Event and budget are required');
     }
 
+    const context = await assertEventEditableByRole({
+      eventId,
+      role: user.role
+    });
+
     await updateEventBudget(eventId, parseBudget(budgetValue));
+
+    if (context.status === 'COMPLETED' && user.role === 'ADMIN') {
+      await logActivity({
+        userId: user.id,
+        action: 'EVENT_EDITED_AFTER_COMPLETION',
+        entityType: 'EVENT',
+        entityId: eventId
+      });
+    }
 
     await logActivity({
       userId: user.id,
@@ -165,5 +228,113 @@ export async function updateEventBudgetFormAction(formData: FormData): Promise<v
   const result = await updateEventBudgetAction(formData);
   if (!result.success) {
     throw new Error(result.message);
+  }
+}
+
+export async function finalizeEventAction(formData: FormData): Promise<{ success: boolean; message: string }> {
+  try {
+    const user = await requireEditPermission();
+    const eventId = String(formData.get('eventId') ?? '').trim();
+
+    if (!eventId) {
+      throw new Error('Event is required');
+    }
+
+    await finalizeEvent({
+      eventId,
+      finalizedById: user.id,
+      finalizedByName: user.name,
+      finalAttendance: parseOptionalNumber(formData.get('finalAttendance')),
+      finalBudgetUsed: parseOptionalNumber(formData.get('finalBudgetUsed')),
+      finalNotes: String(formData.get('finalNotes') ?? '').trim() || null
+    });
+
+    await logActivity({
+      userId: user.id,
+      action: 'EVENT_COMPLETED',
+      entityType: 'EVENT',
+      entityId: eventId
+    });
+
+    await logActivity({
+      userId: user.id,
+      action: 'ARCHIVE_GENERATED',
+      entityType: 'EVENT',
+      entityId: eventId
+    });
+
+    revalidatePath('/');
+    revalidatePath('/events');
+    revalidatePath(`/events/${eventId}`);
+
+    return { success: true, message: 'Event finalized and archive version created' };
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : 'Failed to finalize event' };
+  }
+}
+
+export async function reopenEventAction(formData: FormData): Promise<{ success: boolean; message: string }> {
+  try {
+    const user = await requireEditPermission();
+    if (user.role !== 'ADMIN') {
+      throw new Error('Only admins can reopen completed events');
+    }
+
+    const eventId = String(formData.get('eventId') ?? '').trim();
+    if (!eventId) {
+      throw new Error('Event is required');
+    }
+
+    await reopenEvent(eventId);
+
+    await logActivity({
+      userId: user.id,
+      action: 'EVENT_REOPENED',
+      entityType: 'EVENT',
+      entityId: eventId
+    });
+
+    revalidatePath('/');
+    revalidatePath('/events');
+    revalidatePath(`/events/${eventId}`);
+
+    return { success: true, message: 'Event reopened' };
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : 'Failed to reopen event' };
+  }
+}
+
+export async function regenerateEventArchiveAction(formData: FormData): Promise<{ success: boolean; message: string }> {
+  try {
+    const user = await requireEditPermission();
+    if (user.role !== 'ADMIN') {
+      throw new Error('Only admins can regenerate archives');
+    }
+
+    const eventId = String(formData.get('eventId') ?? '').trim();
+    if (!eventId) {
+      throw new Error('Event is required');
+    }
+
+    await regenerateEventArchive({
+      eventId,
+      generatedById: user.id,
+      generatedByName: user.name
+    });
+
+    await logActivity({
+      userId: user.id,
+      action: 'ARCHIVE_REGENERATED',
+      entityType: 'EVENT',
+      entityId: eventId
+    });
+
+    revalidatePath('/');
+    revalidatePath('/events');
+    revalidatePath(`/events/${eventId}`);
+
+    return { success: true, message: 'Archive regenerated with a new version' };
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : 'Failed to regenerate archive' };
   }
 }

@@ -6,38 +6,25 @@ import { useRouter } from 'next/navigation';
 import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { finalizeEventAction } from '@/modules/events/actions';
 
 export function FinishEventButton({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const router = useRouter();
 
-  async function handleFinish() {
+  async function handleFinalize(formData: FormData) {
     setLoading(true);
+    formData.set('eventId', eventId);
+    const result = await finalizeEventAction(formData);
 
-    const response = await fetch(`/api/events/${eventId}/finish`, {
-      method: 'POST'
-    });
-
-    if (!response.ok) {
-      toast.error('Failed to finish event');
+    if (!result.success) {
+      toast.error(result.message);
       setLoading(false);
       return;
     }
 
-    const blob = await response.blob();
-    const fileName = response.headers.get('x-report-filename') ?? 'event-report.pdf';
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    toast.success('Event finished and report downloaded');
+    toast.success(result.message);
     router.refresh();
     setLoading(false);
     setConfirmOpen(false);
@@ -46,7 +33,7 @@ export function FinishEventButton({ eventId }: { eventId: string }) {
   return (
     <>
       <Button variant="primary" onClick={() => setConfirmOpen(true)}>
-        Finish Event
+        Finalize Event
       </Button>
 
       <Transition appear show={confirmOpen} as={Fragment}>
@@ -80,30 +67,50 @@ export function FinishEventButton({ eventId }: { eventId: string }) {
                       <AlertTriangle className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-[#FAFAFA]">Finish this event?</h3>
+                      <h3 className="text-lg font-semibold text-[#FAFAFA]">Finalize this event?</h3>
                       <p className="mt-1 text-sm text-[#A1A1AA]">
-                        This marks the event as finished and generates the PDF closeout report.
+                        This will mark the event as completed and generate archive version files.
                       </p>
                     </div>
                   </div>
 
-                  <div className="mt-5 flex justify-end gap-2">
-                    <Button variant="ghost" onClick={() => setConfirmOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button
-                      variant="primary"
-                      loading={loading}
-                      onClick={() => {
-                        handleFinish().catch(() => {
-                          setLoading(false);
-                          toast.error('Failed to finish event');
-                        });
-                      }}
-                    >
-                      Confirm Finish
-                    </Button>
-                  </div>
+                  <form
+                    className="mt-5 space-y-3"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const formData = new FormData(event.currentTarget);
+                      handleFinalize(formData).catch(() => {
+                        setLoading(false);
+                        toast.error('Failed to finalize event');
+                      });
+                    }}
+                  >
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label>
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Final Attendance</span>
+                        <input name="finalAttendance" type="number" min="0" step="1" />
+                      </label>
+
+                      <label>
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Final Budget Used</span>
+                        <input name="finalBudgetUsed" type="number" min="0" step="0.01" />
+                      </label>
+                    </div>
+
+                    <label>
+                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Final Notes</span>
+                      <textarea name="finalNotes" rows={3} />
+                    </label>
+
+                    <div className="flex justify-end gap-2">
+                      <Button type="button" variant="ghost" onClick={() => setConfirmOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button type="submit" variant="primary" loading={loading}>
+                        Confirm Finalize
+                      </Button>
+                    </div>
+                  </form>
                 </DialogPanel>
               </TransitionChild>
             </div>

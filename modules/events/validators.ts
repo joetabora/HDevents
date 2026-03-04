@@ -17,8 +17,10 @@ export function parseItemStatus(value: string): ItemStatus {
 }
 
 export function parseEventStatus(value: string): EventStatus {
-  if (isEventStatus(value)) {
-    return value;
+  const normalized = value === 'READY' ? 'ACTIVE' : value === 'FINISHED' ? 'COMPLETED' : value;
+
+  if (isEventStatus(normalized)) {
+    return normalized;
   }
 
   throw new Error('Invalid event status value');

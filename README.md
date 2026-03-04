@@ -50,7 +50,7 @@ public/
   - Item status dropdown updates
   - Attach/view/delete documents
   - Inline new contact creation while adding an item
-  - Finish Event -> mark `FINISHED`, generate/save PDF report, trigger download
+  - Finalize Event -> mark `COMPLETED`, generate versioned archive ZIP/PDF/CSV package, retain archive history
 - Contacts:
   - List and filter by category
   - Edit and delete contacts
@@ -110,7 +110,7 @@ npx prisma migrate deploy
 ```
 5. Redeploy the app.
 
-## Storage Notes (Uploads/Reports)
-- Local dev: files are written under `public/uploads` and `public/reports`.
+## Storage Notes (Uploads/Reports/Archives)
+- Local dev: files are written under `public/uploads`, `public/reports`, and `public/archives`.
 - Vercel runtime: writes fallback to `/tmp/hdevents/*` to avoid hard assumptions about writable project filesystem.
 - `/tmp` is ephemeral, so long-term persistence should be replaced with a durable storage adapter when needed.
