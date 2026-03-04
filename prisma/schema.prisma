@@ -12,11 +12,13 @@ model Event {
   name      String
   date      DateTime
   budget    Float
+  eventType String?
   status    String      @default("PLANNING")
   items     Item[]
   createdById String?
   assignedToId String?
   finalizedById String?
+  templateId String?
   completedAt DateTime?
   finalAttendance Int?
   finalBudgetUsed Float?
@@ -25,7 +27,10 @@ model Event {
   createdBy User? @relation("EventCreator", fields: [createdById], references: [id], onDelete: SetNull)
   assignedTo User? @relation("EventAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   finalizedBy User? @relation("EventFinalizer", fields: [finalizedById], references: [id], onDelete: SetNull)
+  template EventTemplate? @relation("EventTemplateUsage", fields: [templateId], references: [id], onDelete: SetNull)
   archives EventArchive[]
+  debriefs EventDebrief[]
+  contactLinks EventContact[]
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 }
@@ -47,14 +52,28 @@ model Item {
 
 model Contact {
   id           String   @id @default(uuid())
+  firstName    String?
+  lastName     String?
   businessName String
+  company      String?
   category     String
   contactName  String?
   phone        String?
   email        String?
+  contactType  String   @default("VENDOR")
+  source       String   @default("OTHER")
+  assignedToId String?
+  status       String   @default("NEW")
+  leadScore    Int      @default(0)
   notes        String?
   items        Item[]
+  interactions Interaction[]
+  eventLinks   EventContact[]
+  socialLinks  SocialPostContact[]
+  assignedTo   User? @relation("ContactAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  templateVendors TemplateVendor[]
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Document {
@@ -88,6 +107,7 @@ model SocialPost {
   lastSyncedAt   DateTime?
   createdById    String?
   createdBy      User?    @relation("SocialPostAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  contactLinks   SocialPostContact[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -105,7 +125,11 @@ model User {
   eventsCreated Event[] @relation("EventCreator")
   eventsAssigned Event[] @relation("EventAssignee")
   eventsFinalized Event[] @relation("EventFinalizer")
+  createdEventTemplates EventTemplate[] @relation("EventTemplateCreator")
+  generatedEventDebriefs EventDebrief[] @relation("EventDebriefGenerator")
   generatedEventArchives EventArchive[] @relation("EventArchiveGenerator")
+  assignedContacts Contact[] @relation("ContactAssignee")
+  createdInteractions Interaction[] @relation("InteractionCreator")
   createdTasks Task[] @relation("TaskCreator")
   assignedTasks Task[] @relation("TaskAssignee")
   activityLogs ActivityLog[]
@@ -164,4 +188,88 @@ model EventArchive {
   generatedBy    User?   @relation("EventArchiveGenerator", fields: [generatedById], references: [id], onDelete: SetNull)
 
   @@unique([eventId, version])
+}
+
+model EventTemplate {
+  id                    String   @id @default(uuid())
+  name                  String
+  description           String?
+  eventType             String?
+  defaultBudgetCategories Json?
+  defaultTaskChecklist  Json?
+  timelineMilestones    Json?
+  createdById           String?
+  archivedAt            DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  createdBy             User?    @relation("EventTemplateCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  templateVendors       TemplateVendor[]
+  events                Event[]  @relation("EventTemplateUsage")
+}
+
+model TemplateVendor {
+  id                  String   @id @default(uuid())
+  templateId          String
+  vendorId            String
+  defaultCostEstimate Float?
+  category            String
+  priorityLevel       String   @default("PRIMARY")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  template            EventTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  vendor              Contact  @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, vendorId, priorityLevel])
+}
+
+model EventDebrief {
+  id            String   @id @default(uuid())
+  eventId        String
+  version        Int      @default(1)
+  generatedAt    DateTime @default(now())
+  generatedById  String?
+  content        String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  event          Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  generatedBy    User?    @relation("EventDebriefGenerator", fields: [generatedById], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, version])
+}
+
+model Interaction {
+  id           String   @id @default(uuid())
+  contactId    String
+  type         String
+  summary      String
+  followUpDate DateTime?
+  createdById  String?
+  createdAt    DateTime @default(now())
+  contact      Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  createdBy    User?    @relation("InteractionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+}
+
+model EventContact {
+  id              String   @id @default(uuid())
+  eventId         String
+  contactId       String
+  roleTag         String?
+  convertedToLead Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  contact         Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, contactId])
+}
+
+model SocialPostContact {
+  id               String   @id @default(uuid())
+  socialPostId     String
+  contactId        String
+  relationshipType String   @default("COMMENTER")
+  createdAt        DateTime @default(now())
+  socialPost       SocialPost @relation(fields: [socialPostId], references: [id], onDelete: Cascade)
+  contact          Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([socialPostId, contactId])
 }

@@ -37,7 +37,12 @@ export function Sidebar({
   const role = currentUser?.role ?? 'VIEWER';
   const navLinks = [
     ...baseNavLinks,
-    ...(canViewExecutiveOverview(role) ? [{ href: '/executive', label: 'Executive', icon: LayoutDashboard }] : []),
+    ...(canViewExecutiveOverview(role)
+      ? [
+          { href: '/executive', label: 'Executive', icon: LayoutDashboard },
+          { href: '/executive/intelligence', label: 'Annual Intel', icon: LayoutDashboard }
+        ]
+      : []),
     ...(canManageUsers(role) ? [{ href: '/users', label: 'Users', icon: Users }] : [])
   ];
 

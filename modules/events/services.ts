@@ -34,6 +34,34 @@ export type EventWithItems = Prisma.EventGetPayload<{
         };
       };
     };
+    debriefs: {
+      orderBy: { version: 'desc' };
+      include: {
+        generatedBy: {
+          select: {
+            id: true;
+            name: true;
+            email: true;
+          };
+        };
+      };
+    };
+    contactLinks: {
+      orderBy: { createdAt: 'desc' };
+      include: {
+        contact: {
+          include: {
+            assignedTo: {
+              select: {
+                id: true;
+                name: true;
+                email: true;
+              };
+            };
+          };
+        };
+      };
+    };
   };
 }>;
 
@@ -57,6 +85,7 @@ export async function listEvents() {
       name: event.name,
       date: event.date,
       budget: event.budget,
+      eventType: event.eventType,
       status: event.status,
       createdAt: event.createdAt,
       updatedAt: event.updatedAt,
@@ -71,6 +100,7 @@ export async function createEvent(params: {
   name: string;
   date: Date;
   budget: number;
+  eventType?: string | null;
   createdById?: string | null;
   assignedToId?: string | null;
 }) {
@@ -79,6 +109,7 @@ export async function createEvent(params: {
       name: params.name,
       date: params.date,
       budget: params.budget,
+      eventType: params.eventType ?? null,
       createdById: params.createdById ?? null,
       assignedToId: params.assignedToId ?? null
     }
@@ -115,6 +146,34 @@ export async function getEventById(eventId: string): Promise<EventWithItems | nu
               id: true,
               name: true,
               email: true
+            }
+          }
+        }
+      },
+      debriefs: {
+        orderBy: { version: 'desc' },
+        include: {
+          generatedBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          }
+        }
+      },
+      contactLinks: {
+        orderBy: { createdAt: 'desc' },
+        include: {
+          contact: {
+            include: {
+              assignedTo: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true
+                }
+              }
             }
           }
         }

@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { Trash2 } from 'lucide-react';
+import { EventsNav } from '@/components/events/events-nav';
 import { NewTaskButton } from '@/components/tasks/new-task-button';
 import { SubmitButton } from '@/components/forms/submit-button';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { eventTypeLabels, eventTypeValues } from '@/lib/utils/constants';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { createEventAction, deleteEventAction, updateEventBudgetFormAction } from '@/modules/events/actions';
 import { listEvents } from '@/modules/events/services';
@@ -28,10 +30,12 @@ export default async function EventsPage() {
         subtitle="Create, inspect, and close out your active event operations."
       />
 
+      <EventsNav />
+
       {allowEdit ? (
         <Card>
           <h2 className="text-lg font-semibold text-[#FAFAFA]">Create Event</h2>
-          <form action={createEventAction} className="mt-4 grid gap-4 md:grid-cols-4">
+          <form action={createEventAction} className="mt-4 grid gap-4 md:grid-cols-5">
             <label>
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Event Name</span>
               <input name="name" required />
@@ -45,6 +49,18 @@ export default async function EventsPage() {
             <label>
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Budget (USD)</span>
               <input name="budget" type="number" min="0" step="0.01" required />
+            </label>
+
+            <label>
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Event Type</span>
+              <select name="eventType" defaultValue="">
+                <option value="">Unspecified</option>
+                {eventTypeValues.map((value) => (
+                  <option key={value} value={value}>
+                    {eventTypeLabels[value]}
+                  </option>
+                ))}
+              </select>
             </label>
 
             <label>
@@ -72,7 +88,10 @@ export default async function EventsPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-lg font-semibold text-[#FAFAFA]">{event.name}</h3>
-                <p className="text-sm text-[#A1A1AA]">{formatDate(event.date)}</p>
+                <p className="text-sm text-[#A1A1AA]">
+                  {formatDate(event.date)}
+                  {event.eventType ? ` • ${eventTypeLabels[event.eventType as keyof typeof eventTypeLabels] ?? event.eventType}` : ''}
+                </p>
               </div>
               <span className="rounded-full border border-[#27272A] px-2.5 py-1 text-xs text-[#A1A1AA]">{event.status}</span>
             </div>

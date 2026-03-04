@@ -1,5 +1,6 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Eye, FileStack, Gauge, Goal, Handshake, Megaphone, Wallet } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Eye, FileStack, Gauge, Goal, Handshake, Megaphone, UserPlus, Users, Wallet } from 'lucide-react';
 import { ExecutiveCharts } from '@/components/dashboard/executive-charts';
 import { WeeklySummaryButton } from '@/components/dashboard/weekly-summary-button';
 import { PageHeader } from '@/components/layout/page-header';
@@ -25,7 +26,17 @@ export default async function ExecutivePage() {
       <PageHeader
         title="Executive Overview"
         subtitle="Minimal, high-signal view of marketing, events, and operations performance."
-        right={<WeeklySummaryButton />}
+        right={
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/executive/intelligence"
+              className="rounded-2xl border border-[#27272A] bg-[#111113] px-4 py-2 text-sm font-semibold text-[#FAFAFA] hover:border-[#FF6A00] hover:text-[#FF8124]"
+            >
+              Annual Intelligence
+            </Link>
+            <WeeklySummaryButton />
+          </div>
+        }
       />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -59,6 +70,48 @@ export default async function ExecutivePage() {
             <Gauge className="h-4 w-4 text-rose-400" />
           </div>
           <p className="mt-2 text-3xl font-bold text-rose-300">{summary.operations.overdueTasks}</p>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <Card>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-[#A1A1AA]">Total Active Leads</p>
+            <Users className="h-4 w-4 text-[#FF8124]" />
+          </div>
+          <p className="mt-2 text-3xl font-bold text-[#FAFAFA]">{summary.crm.totalActiveLeads}</p>
+        </Card>
+
+        <Card>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-[#A1A1AA]">Leads This Month</p>
+            <UserPlus className="h-4 w-4 text-[#FF8124]" />
+          </div>
+          <p className="mt-2 text-3xl font-bold text-[#FAFAFA]">{summary.crm.leadsThisMonth}</p>
+        </Card>
+
+        <Card>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-[#A1A1AA]">Follow-ups Due Today</p>
+            <CalendarClock className="h-4 w-4 text-[#FF8124]" />
+          </div>
+          <p className="mt-2 text-3xl font-bold text-[#FAFAFA]">{summary.crm.followUpsDueToday}</p>
+        </Card>
+
+        <Card>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-[#A1A1AA]">Overdue Follow-ups</p>
+            <AlertTriangle className="h-4 w-4 text-rose-400" />
+          </div>
+          <p className="mt-2 text-3xl font-bold text-rose-300">{summary.crm.overdueFollowUps}</p>
+        </Card>
+
+        <Card>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-[#A1A1AA]">New Contacts This Week</p>
+            <Users className="h-4 w-4 text-[#FF8124]" />
+          </div>
+          <p className="mt-2 text-3xl font-bold text-[#FAFAFA]">{summary.crm.newContactsThisWeek}</p>
         </Card>
       </section>
 

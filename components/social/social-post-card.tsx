@@ -11,6 +11,8 @@ import { SocialStatusBadge } from './social-status-badge';
 import { SocialStatusSelect } from './social-status-select';
 import { SocialPostFormModal } from './social-post-form-modal';
 import { SocialPerformanceModal } from './social-performance-modal';
+import { ConvertCommenterModal } from './convert-commenter-modal';
+import { LinkContactToSocialModal } from './link-contact-to-social-modal';
 import { Button } from '@/components/ui/button';
 
 function normalizeStatus(value: string): SocialPostStatus {
@@ -42,7 +44,8 @@ export function SocialPostCard({
   allowEdit = true,
   allowDelete = true,
   allowPerformance = true,
-  taskUsers = []
+  taskUsers = [],
+  contactOptions = []
 }: {
   post: {
     id: string;
@@ -69,6 +72,7 @@ export function SocialPostCard({
   allowDelete?: boolean;
   allowPerformance?: boolean;
   taskUsers?: Array<{ id: string; name: string; email: string }>;
+  contactOptions?: Array<{ id: string; displayName: string; company: string; contactType: string; status: string }>;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [performanceOpen, setPerformanceOpen] = useState(false);
@@ -197,6 +201,12 @@ export function SocialPostCard({
             {allowEdit ? (
               <NewTaskButton label="Task" compact relatedType="SOCIAL" relatedId={post.id} users={taskUsers} />
             ) : null}
+
+            {allowEdit && contactOptions.length > 0 ? (
+              <LinkContactToSocialModal socialPostId={post.id} contacts={contactOptions} />
+            ) : null}
+
+            {allowEdit ? <ConvertCommenterModal socialPostId={post.id} users={taskUsers} /> : null}
           </div>
         </div>
       </article>

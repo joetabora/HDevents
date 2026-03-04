@@ -4,6 +4,7 @@ import { NewSocialPostButton } from '@/components/social/new-social-post-button'
 import { SocialPostCard } from '@/components/social/social-post-card';
 import { Card } from '@/components/ui/card';
 import { formatDate } from '@/lib/utils/format';
+import { listContactLinkOptions } from '@/modules/contacts/services';
 import { getIdeaVaultPosts } from '@/modules/social/queries';
 import { canDeleteRecords, canEditContent, canUpdatePerformance } from '@/modules/users/permissions';
 import { requireCurrentUserPage } from '@/modules/users/server';
@@ -13,13 +14,15 @@ export const dynamic = 'force-dynamic';
 
 export default async function SocialIdeasPage() {
   const currentUser = await requireCurrentUserPage();
-  const [ideaPosts, userOptions] = await Promise.all([
-    getIdeaVaultPosts(),
-    canEditContent(currentUser.role) ? listUserOptions() : Promise.resolve([])
-  ]);
   const allowEdit = canEditContent(currentUser.role);
   const allowDelete = canDeleteRecords(currentUser.role);
   const allowPerformance = canUpdatePerformance(currentUser.role);
+
+  const [ideaPosts, userOptions, contactOptions] = await Promise.all([
+    getIdeaVaultPosts(),
+    allowEdit ? listUserOptions() : Promise.resolve([]),
+    allowEdit ? listContactLinkOptions() : Promise.resolve([])
+  ]);
 
   return (
     <div className="space-y-10">
@@ -66,6 +69,7 @@ export default async function SocialIdeasPage() {
                   allowDelete={allowDelete}
                   allowPerformance={allowPerformance}
                   taskUsers={userOptions}
+                  contactOptions={contactOptions}
                 />
                 <p className="mt-2 text-xs text-[#A1A1AA]">Created {formatDate(post.createdAt)}</p>
               </div>

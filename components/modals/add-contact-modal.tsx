@@ -6,9 +6,10 @@ import { useRouter } from 'next/navigation';
 import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { categoryValues, categoryLabels } from '@/lib/utils/constants';
+import { categoryLabels, categoryValues } from '@/lib/utils/constants';
+import { CONTACT_SOURCES, CONTACT_STATUSES, CONTACT_TYPES } from '@/lib/types/crm';
 
-export function AddContactModal() {
+export function AddContactModal({ users = [] }: { users?: Array<{ id: string; name: string; email: string }> }) {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
@@ -72,11 +73,11 @@ export function AddContactModal() {
                 leaveFrom="opacity-100 scale-100"
                 leaveTo="opacity-0 scale-95"
               >
-                <DialogPanel className="w-full max-w-xl rounded-2xl border border-[#27272A] bg-[#18181B] p-6 shadow-2xl">
+                <DialogPanel className="w-full max-w-2xl rounded-2xl border border-[#27272A] bg-[#18181B] p-6 shadow-2xl">
                   <div className="mb-5 flex items-center justify-between">
                     <div>
                       <h3 className="text-lg font-semibold text-[#FAFAFA]">Add Contact</h3>
-                      <p className="text-sm text-[#A1A1AA]">Create a reusable vendor contact profile.</p>
+                      <p className="text-sm text-[#A1A1AA]">Create a lead, vendor, sponsor, media, or customer contact.</p>
                     </div>
                     <button
                       type="button"
@@ -90,12 +91,23 @@ export function AddContactModal() {
                   <form onSubmit={onSubmit} className="space-y-4">
                     <div className="grid gap-3 md:grid-cols-2">
                       <label>
-                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Business Name</span>
-                        <input name="businessName" required />
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">First Name</span>
+                        <input name="firstName" />
                       </label>
+
+                      <label>
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Last Name</span>
+                        <input name="lastName" />
+                      </label>
+
+                      <label>
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Company / Business</span>
+                        <input name="businessName" />
+                      </label>
+
                       <label>
                         <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Category</span>
-                        <select name="category" defaultValue={categoryValues[0]}>
+                        <select name="category" defaultValue={categoryValues[4]}>
                           {categoryValues.map((category) => (
                             <option key={category} value={category}>
                               {categoryLabels[category]}
@@ -103,18 +115,62 @@ export function AddContactModal() {
                           ))}
                         </select>
                       </label>
+
                       <label>
-                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Contact Name</span>
-                        <input name="contactName" />
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Contact Type</span>
+                        <select name="contactType" defaultValue="LEAD">
+                          {CONTACT_TYPES.map((type) => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </select>
                       </label>
+
+                      <label>
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Source</span>
+                        <select name="source" defaultValue="OTHER">
+                          {CONTACT_SOURCES.map((source) => (
+                            <option key={source} value={source}>
+                              {source}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label>
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Status</span>
+                        <select name="status" defaultValue="NEW">
+                          {CONTACT_STATUSES.map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label>
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Assigned To</span>
+                        <select name="assignedToId" defaultValue="">
+                          <option value="">Unassigned</option>
+                          {users.map((user) => (
+                            <option key={user.id} value={user.id}>
+                              {user.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
                       <label>
                         <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Phone</span>
                         <input name="phone" />
                       </label>
-                      <label className="md:col-span-2">
+
+                      <label>
                         <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Email</span>
                         <input type="email" name="email" />
                       </label>
+
                       <label className="md:col-span-2">
                         <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Notes</span>
                         <textarea name="notes" rows={3} />

@@ -1,4 +1,4 @@
-export const TASK_RELATED_TYPES = ['EVENT', 'SOCIAL', 'VENDOR', 'GENERAL'] as const;
+export const TASK_RELATED_TYPES = ['EVENT', 'SOCIAL', 'VENDOR', 'CONTACT', 'GENERAL'] as const;
 
 export type TaskRelatedType = (typeof TASK_RELATED_TYPES)[number];
 

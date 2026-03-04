@@ -15,7 +15,7 @@ import {
   reopenEvent,
   updateEventBudget
 } from './services';
-import { parseCategory, parseItemStatus } from './validators';
+import { parseCategory, parseItemStatus, parseOptionalEventType } from './validators';
 
 function parseBudget(input: string): number {
   const value = Number(input);
@@ -60,6 +60,7 @@ export async function createEventAction(formData: FormData): Promise<void> {
   const name = String(formData.get('name') ?? '').trim();
   const date = String(formData.get('date') ?? '').trim();
   const budget = String(formData.get('budget') ?? '').trim();
+  const eventType = parseOptionalEventType(String(formData.get('eventType') ?? '').trim());
 
   if (!name || !date || !budget) {
     throw new Error('Missing required event fields');
@@ -69,6 +70,7 @@ export async function createEventAction(formData: FormData): Promise<void> {
     name,
     date: parseDate(date),
     budget: parseBudget(budget),
+    eventType,
     createdById: user.id,
     assignedToId: String(formData.get('assignedToId') ?? '').trim() || null
   });

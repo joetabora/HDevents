@@ -4,6 +4,7 @@ import { NewSocialPostButton } from '@/components/social/new-social-post-button'
 import { SocialPostCard } from '@/components/social/social-post-card';
 import { Card } from '@/components/ui/card';
 import { isSocialPostStatus, SOCIAL_POST_STATUSES, type SocialPostStatus } from '@/lib/types/social';
+import { listContactLinkOptions } from '@/modules/contacts/services';
 import { getPipelinePostsGrouped } from '@/modules/social/queries';
 import { canDeleteRecords, canEditContent, canUpdatePerformance } from '@/modules/users/permissions';
 import { requireCurrentUserPage } from '@/modules/users/server';
@@ -25,13 +26,15 @@ function normalizeStatus(value: string): SocialPostStatus {
 
 export default async function SocialPipelinePage() {
   const currentUser = await requireCurrentUserPage();
-  const [grouped, userOptions] = await Promise.all([
-    getPipelinePostsGrouped(),
-    canEditContent(currentUser.role) ? listUserOptions() : Promise.resolve([])
-  ]);
   const allowEdit = canEditContent(currentUser.role);
   const allowDelete = canDeleteRecords(currentUser.role);
   const allowPerformance = canUpdatePerformance(currentUser.role);
+
+  const [grouped, userOptions, contactOptions] = await Promise.all([
+    getPipelinePostsGrouped(),
+    allowEdit ? listUserOptions() : Promise.resolve([]),
+    allowEdit ? listContactLinkOptions() : Promise.resolve([])
+  ]);
 
   return (
     <div className="space-y-10">
@@ -89,6 +92,7 @@ export default async function SocialPipelinePage() {
                         allowDelete={allowDelete}
                         allowPerformance={allowPerformance}
                         taskUsers={userOptions}
+                        contactOptions={contactOptions}
                       />
                     );
                   })}

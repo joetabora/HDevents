@@ -1,65 +1,128 @@
-import { type Category } from '@/lib/types/domain';
-import { AddContactModal } from '@/components/modals/add-contact-modal';
-import { NewTaskButton } from '@/components/tasks/new-task-button';
-import { SubmitButton } from '@/components/forms/submit-button';
+import Link from 'next/link';
 import { PageHeader } from '@/components/layout/page-header';
+import { AddContactModal } from '@/components/modals/add-contact-modal';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { categoryLabels, categoryValues } from '@/lib/utils/constants';
-import { formatDate } from '@/lib/utils/format';
-import { deleteContactAction, updateContactAction } from '@/modules/contacts/actions';
-import { listContacts } from '@/modules/contacts/services';
-import { parseCategory } from '@/modules/events/validators';
-import { canDeleteRecords, canEditContent } from '@/modules/users/permissions';
+import { CONTACT_STATUSES, CONTACT_TYPES, parseContactStatus, parseContactType } from '@/lib/types/crm';
+import { listCRMContacts } from '@/modules/contacts/services';
+import { canEditContent } from '@/modules/users/permissions';
 import { requireCurrentUserPage } from '@/modules/users/server';
 import { listUserOptions } from '@/modules/users/services';
 
-function safeCategory(value?: string): Category | undefined {
+function safeType(value?: string) {
   if (!value) {
     return undefined;
   }
 
   try {
-    return parseCategory(value);
+    return parseContactType(value);
   } catch {
     return undefined;
   }
 }
 
+function safeStatus(value?: string) {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    return parseContactStatus(value);
+  } catch {
+    return undefined;
+  }
+}
+
+export const dynamic = 'force-dynamic';
+
 export default async function ContactsPage({
   searchParams
 }: {
-  searchParams?: { category?: string };
+  searchParams?: { search?: string; type?: string; assignedToId?: string; status?: string };
 }) {
   const currentUser = await requireCurrentUserPage();
   const allowEdit = canEditContent(currentUser.role);
-  const allowDelete = canDeleteRecords(currentUser.role);
 
-  const selectedCategory = safeCategory(searchParams?.category);
+  const selectedType = safeType(searchParams?.type);
+  const selectedStatus = safeStatus(searchParams?.status);
+  const selectedAssigned = searchParams?.assignedToId?.trim() || undefined;
+  const selectedSearch = searchParams?.search?.trim() || '';
+
   const [contacts, userOptions] = await Promise.all([
-    listContacts(selectedCategory),
-    allowEdit ? listUserOptions() : Promise.resolve([])
+    listCRMContacts({
+      search: selectedSearch,
+      contactType: selectedType,
+      assignedToId: selectedAssigned,
+      status: selectedStatus
+    }),
+    listUserOptions()
   ]);
 
   return (
     <div className="space-y-10">
       <PageHeader
-        title="Contacts"
-        subtitle="Manage vendor relationships and track event participation history."
-        right={allowEdit ? <AddContactModal /> : null}
+        title="Internal CRM"
+        subtitle="Track leads, vendors, sponsors, media, and follow-ups across events, social, and operations."
+        right={allowEdit ? <AddContactModal users={userOptions} /> : null}
       />
 
       <Card>
-        <div className="flex flex-wrap gap-2">
-          <a href="/contacts">
-            <Button variant={!selectedCategory ? 'primary' : 'ghost'}>All</Button>
-          </a>
-          {categoryValues.map((category) => (
-            <a key={category} href={`/contacts?category=${category}`}>
-              <Button variant={selectedCategory === category ? 'primary' : 'ghost'}>{categoryLabels[category]}</Button>
-            </a>
-          ))}
-        </div>
+        <form className="grid gap-3 md:grid-cols-5" method="GET">
+          <label className="md:col-span-2">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Search</span>
+            <input name="search" defaultValue={selectedSearch} placeholder="Name, company, email, phone" />
+          </label>
+
+          <label>
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Type</span>
+            <select name="type" defaultValue={selectedType ?? ''}>
+              <option value="">All</option>
+              {CONTACT_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Assigned</span>
+            <select name="assignedToId" defaultValue={selectedAssigned ?? ''}>
+              <option value="">All</option>
+              {userOptions.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Status</span>
+            <select name="status" defaultValue={selectedStatus ?? ''}>
+              <option value="">All</option>
+              {CONTACT_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="md:col-span-5 flex items-center justify-end gap-2">
+            <button
+              type="submit"
+              className="rounded-2xl border border-[#FF6A00] bg-[#FF6A00]/15 px-4 py-2 text-sm font-semibold text-[#FF8124] hover:bg-[#FF6A00]/25"
+            >
+              Apply Filters
+            </button>
+            <Link
+              href="/contacts"
+              className="rounded-2xl border border-[#27272A] bg-[#111113] px-4 py-2 text-sm font-semibold text-[#A1A1AA] hover:text-[#FAFAFA]"
+            >
+              Reset
+            </Link>
+          </div>
+        </form>
       </Card>
 
       {contacts.length === 0 ? (
@@ -67,97 +130,38 @@ export default async function ContactsPage({
           <p className="text-sm text-[#A1A1AA]">No contacts found for this filter.</p>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-4 xl:grid-cols-2">
           {contacts.map((contact) => {
-            const uniqueEvents = Array.from(
-              new Map(contact.items.map((item) => [item.event.id, item.event])).values()
-            );
+            const highValueLead = contact.contactType === 'LEAD' && contact.leadScore >= 60;
 
             return (
-              <Card key={contact.id}>
-                {allowEdit ? (
-                  <form action={updateContactAction} className="grid gap-3 md:grid-cols-3">
-                    <input type="hidden" name="id" value={contact.id} />
-
-                    <label>
-                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Business Name</span>
-                      <input name="businessName" defaultValue={contact.businessName} required />
-                    </label>
-
-                    <label>
-                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Category</span>
-                      <select name="category" defaultValue={contact.category}>
-                        {categoryValues.map((category) => (
-                          <option key={category} value={category}>
-                            {categoryLabels[category]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label>
-                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Contact Name</span>
-                      <input name="contactName" defaultValue={contact.contactName ?? ''} />
-                    </label>
-
-                    <label>
-                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Phone</span>
-                      <input name="phone" defaultValue={contact.phone ?? ''} />
-                    </label>
-
-                    <label>
-                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Email</span>
-                      <input name="email" type="email" defaultValue={contact.email ?? ''} />
-                    </label>
-
-                    <label className="md:col-span-3">
-                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Notes</span>
-                      <textarea name="notes" rows={2} defaultValue={contact.notes ?? ''} />
-                    </label>
-
-                    <div className="md:col-span-3 flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <SubmitButton variant="primary" pendingText="Saving...">
-                          Save Contact
-                        </SubmitButton>
-                        <NewTaskButton label="Task" compact relatedType="VENDOR" relatedId={contact.id} users={userOptions} />
-                      </div>
+              <Link key={contact.id} href={`/contacts/${contact.id}`}>
+                <Card className={`transition duration-200 ease-in-out hover:border-[#3f3f46] ${highValueLead ? 'border-[#FF6A00]/55 shadow-[0_0_22px_rgba(255,129,36,0.16)]' : ''}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold text-[#FAFAFA]">{contact.displayName}</h3>
+                      <p className="mt-1 text-sm text-[#A1A1AA]">{contact.company || contact.businessName}</p>
+                      <p className="mt-1 text-xs text-[#A1A1AA]">{contact.email || 'No email'} • {contact.phone || 'No phone'}</p>
                     </div>
-                  </form>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-base font-semibold text-[#FAFAFA]">{contact.businessName}</p>
-                    <p className="text-sm text-[#A1A1AA]">{contact.category}</p>
-                    <p className="text-sm text-[#A1A1AA]">{contact.contactName ?? 'No contact name'}</p>
-                    <p className="text-sm text-[#A1A1AA]">{contact.email ?? 'No email'} • {contact.phone ?? 'No phone'}</p>
-                    {contact.notes ? <p className="text-sm text-[#A1A1AA]">{contact.notes}</p> : null}
+                    <div className="text-right">
+                      <span className="rounded-full border border-[#27272A] px-2 py-0.5 text-xs text-[#FF8124]">{contact.contactType}</span>
+                      <p className="mt-1 text-xs text-[#A1A1AA]">{contact.status}</p>
+                    </div>
                   </div>
-                )}
 
-                {allowDelete ? (
-                  <form action={deleteContactAction} className="mt-3">
-                    <input type="hidden" name="id" value={contact.id} />
-                    <SubmitButton variant="danger" pendingText="Deleting...">
-                      Delete Contact
-                    </SubmitButton>
-                  </form>
-                ) : null}
-
-                <div className="mt-4 rounded-2xl border border-[#27272A] bg-[#111113] p-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Past Events</h3>
-                  {uniqueEvents.length === 0 ? (
-                    <p className="mt-1 text-sm text-[#A1A1AA]">No associated events yet.</p>
-                  ) : (
-                    <ul className="mt-1 space-y-1 text-sm text-[#A1A1AA]">
-                      {uniqueEvents.map((event) => (
-                        <li key={event.id}>
-                          {event.name} ({formatDate(event.date)})
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </Card>
+                  <div className="mt-4 grid gap-1 text-xs text-[#A1A1AA]">
+                    <p>Lead Score: <span className="text-[#FAFAFA]">{contact.leadScore}</span></p>
+                    <p>Assigned: <span className="text-[#FAFAFA]">{contact.assignedTo?.name ?? 'Unassigned'}</span></p>
+                    <p>
+                      Last Interaction:{' '}
+                      <span className="text-[#FAFAFA]">{contact.lastInteractionAt ? new Date(contact.lastInteractionAt).toLocaleString() : 'No interactions yet'}</span>
+                    </p>
+                    <p>
+                      Linked: <span className="text-[#FAFAFA]">{contact._count.eventLinks} events • {contact._count.socialLinks} social • {contact._count.items} vendor records</span>
+                    </p>
+                  </div>
+                </Card>
+              </Link>
             );
           })}
         </div>

@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { NewSocialPostButton } from '@/components/social/new-social-post-button';
 import { SocialPostCard } from '@/components/social/social-post-card';
 import { Card } from '@/components/ui/card';
+import { listContactLinkOptions } from '@/modules/contacts/services';
 import { getSocialDashboardSummary } from '@/modules/social/queries';
 import { canDeleteRecords, canEditContent, canUpdatePerformance } from '@/modules/users/permissions';
 import { requireCurrentUserPage } from '@/modules/users/server';
@@ -12,14 +13,16 @@ export const dynamic = 'force-dynamic';
 
 export default async function SocialDashboardPage() {
   const currentUser = await requireCurrentUserPage();
-  const [summary, userOptions] = await Promise.all([
-    getSocialDashboardSummary(),
-    canEditContent(currentUser.role) ? listUserOptions() : Promise.resolve([])
-  ]);
-  const usedBikePercent = Math.min(100, Math.round((summary.usedBikesPostedToday / summary.usedBikeGoal) * 100));
   const allowEdit = canEditContent(currentUser.role);
   const allowDelete = canDeleteRecords(currentUser.role);
   const allowPerformance = canUpdatePerformance(currentUser.role);
+
+  const [summary, userOptions, contactOptions] = await Promise.all([
+    getSocialDashboardSummary(),
+    allowEdit ? listUserOptions() : Promise.resolve([]),
+    allowEdit ? listContactLinkOptions() : Promise.resolve([])
+  ]);
+  const usedBikePercent = Math.min(100, Math.round((summary.usedBikesPostedToday / summary.usedBikeGoal) * 100));
 
   return (
     <div className="space-y-10">
@@ -112,6 +115,7 @@ export default async function SocialDashboardPage() {
                   allowDelete={allowDelete}
                   allowPerformance={allowPerformance}
                   taskUsers={userOptions}
+                  contactOptions={contactOptions}
                 />
               ))}
             </div>

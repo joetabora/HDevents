@@ -19,6 +19,10 @@ function startOfWeek(date: Date): Date {
   return startOfDay(monday);
 }
 
+function startOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
 function scoreFromPublicMetrics(metrics: {
   likes: number;
   comments: number;
@@ -117,6 +121,7 @@ export async function getExecutiveOverview() {
   const todayStart = startOfDay(now);
   const todayEnd = endOfDay(now);
   const weekStart = startOfWeek(now);
+  const monthStart = startOfMonth(now);
   const thirtyDaysAgo = new Date(now);
   thirtyDaysAgo.setDate(now.getDate() - 29);
 
@@ -131,7 +136,12 @@ export async function getExecutiveOverview() {
     lockedVendors,
     taskSummary,
     docsWeek,
-    globalDocsWeek
+    globalDocsWeek,
+    activeLeads,
+    leadsThisMonth,
+    followUpsDueToday,
+    overdueFollowUps,
+    newContactsThisWeek
   ] = await Promise.all([
     prisma.socialPost.count({
       where: { createdAt: { gte: weekStart } }
@@ -232,6 +242,48 @@ export async function getExecutiveOverview() {
       where: {
         uploadedAt: { gte: weekStart }
       }
+    }),
+    prisma.contact.count({
+      where: {
+        contactType: 'LEAD',
+        status: {
+          in: ['CONTACTED', 'ACTIVE']
+        }
+      }
+    }),
+    prisma.contact.count({
+      where: {
+        contactType: 'LEAD',
+        createdAt: {
+          gte: monthStart
+        }
+      }
+    }),
+    prisma.task.count({
+      where: {
+        relatedType: 'CONTACT',
+        completed: false,
+        dueDate: {
+          gte: todayStart,
+          lt: todayEnd
+        }
+      }
+    }),
+    prisma.task.count({
+      where: {
+        relatedType: 'CONTACT',
+        completed: false,
+        dueDate: {
+          lt: todayStart
+        }
+      }
+    }),
+    prisma.contact.count({
+      where: {
+        createdAt: {
+          gte: weekStart
+        }
+      }
     })
   ]);
 
@@ -320,6 +372,13 @@ export async function getExecutiveOverview() {
       openTasks: taskSummary.openTasks,
       overdueTasks: taskSummary.overdueTasks,
       documentsUploadedThisWeek: docsWeek + globalDocsWeek
+    },
+    crm: {
+      totalActiveLeads: activeLeads,
+      leadsThisMonth,
+      followUpsDueToday,
+      overdueFollowUps,
+      newContactsThisWeek
     }
   };
 }
