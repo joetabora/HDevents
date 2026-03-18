@@ -13,6 +13,7 @@ model Event {
   date      DateTime
   budget    Float
   eventType String?
+  playbook  Json?
   status    String      @default("PLANNING")
   items     Item[]
   createdById String?

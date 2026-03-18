@@ -4,6 +4,7 @@ import { AdminControls } from '@/components/events/admin-controls';
 import { BudgetCards } from '@/components/events/budget-cards';
 import { CategorySection } from '@/components/events/category-section';
 import { DebriefPanel } from '@/components/events/debrief-panel';
+import { PlaybookPanel } from '@/components/events/playbook-panel';
 import { SaveAsTemplateButton } from '@/components/events/save-as-template-button';
 import { SubmitButton } from '@/components/forms/submit-button';
 import { PageHeader } from '@/components/layout/page-header';
@@ -13,6 +14,7 @@ import { categoryLabels, categoryValues, eventTypeLabels } from '@/lib/utils/con
 import { formatDate } from '@/lib/utils/format';
 import { attachContactToEventFormAction, convertEventContactToLeadFormAction } from '@/modules/contacts/actions';
 import { listContactLinkOptions, listContactsForSelection } from '@/modules/contacts/services';
+import { getEventPlaybook } from '@/modules/events/playbook';
 import { buildEventDebriefContext } from '@/modules/events/services/aiDebriefService';
 import { getEventById, getEventFinancials, groupItemsByCategory } from '@/modules/events/services';
 import { canDeleteRecords, canEditContent } from '@/modules/users/permissions';
@@ -52,8 +54,9 @@ export default async function EventPage({
   const allowEdit = allowEditByRole && (!isCompleted || adminEditEnabled);
   const allowDelete = canDeleteRecords(currentUser.role) && (!isCompleted || adminEditEnabled);
   const allowFinalize = allowEditByRole && !isCompleted;
-  const selectedTab = searchParams?.tab === 'debrief' ? 'debrief' : 'operations';
+  const selectedTab = searchParams?.tab === 'operations' || searchParams?.tab === 'debrief' ? searchParams.tab : 'playbook';
   const groupedItems = groupItemsByCategory(event.items);
+  const playbook = getEventPlaybook(event.playbook);
 
   const debriefContext = isCompleted && selectedTab === 'debrief' ? await buildEventDebriefContext(event.id) : null;
   const latestDebriefRaw = event.debriefs[0];
@@ -74,9 +77,14 @@ export default async function EventPage({
 
   const operationsHref = (() => {
     const query = new URLSearchParams(baseQuery.toString());
-    query.delete('tab');
-    const qs = query.toString();
-    return qs ? `/events/${event.id}?${qs}` : `/events/${event.id}`;
+    query.set('tab', 'operations');
+    return `/events/${event.id}?${query.toString()}`;
+  })();
+
+  const playbookHref = (() => {
+    const query = new URLSearchParams(baseQuery.toString());
+    query.set('tab', 'playbook');
+    return `/events/${event.id}?${query.toString()}`;
   })();
 
   const debriefHref = (() => {
@@ -99,6 +107,16 @@ export default async function EventPage({
       />
 
       <div className="flex flex-wrap gap-2">
+        <Link
+          href={playbookHref}
+          className={`rounded-2xl border px-4 py-2 text-sm font-semibold transition duration-200 ease-in-out ${
+            selectedTab === 'playbook'
+              ? 'border-[#FF6A00] bg-[#FF6A00]/15 text-[#FF8124]'
+              : 'border-[#27272A] bg-[#111113] text-[#A1A1AA] hover:border-[#3f3f46] hover:text-[#FAFAFA]'
+          }`}
+        >
+          Playbook
+        </Link>
         <Link
           href={operationsHref}
           className={`rounded-2xl border px-4 py-2 text-sm font-semibold transition duration-200 ease-in-out ${
@@ -158,6 +176,8 @@ export default async function EventPage({
             <p className="text-sm text-[#A1A1AA]">Debrief is available after event completion.</p>
           </Card>
         )
+      ) : selectedTab === 'playbook' ? (
+        <PlaybookPanel eventId={event.id} playbook={playbook} canEdit={allowEdit} />
       ) : (
         <>
           <BudgetCards totalBudget={event.budget} allocated={financials.totalAllocated} remaining={financials.remainingBudget} />

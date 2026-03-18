@@ -3,22 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Briefcase, CalendarDays, ChevronLeft, ChevronRight, LayoutDashboard, Radio, Settings, Users, UserSquare2 } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import type { UserDepartment, UserRole } from '@/modules/users/constants';
-import { canManageUsers, canViewExecutiveOverview } from '@/modules/users/permissions';
 import { LogoutButton } from './logout-button';
 
-const baseNavLinks = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/events', label: 'Events', icon: CalendarDays },
-  { href: '/social', label: 'Social', icon: Radio },
-  { href: '/contacts', label: 'Contacts', icon: Users },
-  { href: '/tasks', label: 'Task Center', icon: Briefcase },
-  { href: '/tasks/mine', label: 'My Tasks', icon: UserSquare2 },
-  { href: '/documents', label: 'Documents', icon: Briefcase },
-  { href: '/settings', label: 'Settings', icon: Settings }
-];
+const navLinks = [{ href: '/events', label: 'Events', icon: CalendarDays }];
 
 export function Sidebar({
   collapsed,
@@ -34,17 +24,6 @@ export function Sidebar({
   currentUser: { id: string; name: string; email: string; role: UserRole; department: UserDepartment } | null;
 }) {
   const pathname = usePathname();
-  const role = currentUser?.role ?? 'VIEWER';
-  const navLinks = [
-    ...baseNavLinks,
-    ...(canViewExecutiveOverview(role)
-      ? [
-          { href: '/executive', label: 'Executive', icon: LayoutDashboard },
-          { href: '/executive/intelligence', label: 'Annual Intel', icon: LayoutDashboard }
-        ]
-      : []),
-    ...(canManageUsers(role) ? [{ href: '/users', label: 'Users', icon: Users }] : [])
-  ];
 
   const sidebarContent = (
     <>
@@ -58,10 +37,10 @@ export function Sidebar({
               transition={{ duration: 0.2 }}
               className="text-lg font-semibold tracking-wide text-[#FAFAFA]"
             >
-              RALLY OPS
+              EVENT OPS
             </motion.p>
           ) : (
-            <p className="text-sm font-semibold tracking-wide text-[#FAFAFA]">RO</p>
+            <p className="text-sm font-semibold tracking-wide text-[#FAFAFA]">EO</p>
           )}
         </AnimatePresence>
 

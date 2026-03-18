@@ -13,8 +13,10 @@ import {
   getDocumentEventMutationContext,
   regenerateEventArchive,
   reopenEvent,
-  updateEventBudget
+  updateEventBudget,
+  updateEventPlaybook
 } from './services';
+import { parseChecklistInput, parseMultilineList } from './playbook';
 import { parseCategory, parseItemStatus, parseOptionalEventType } from './validators';
 
 function parseBudget(input: string): number {
@@ -228,6 +230,110 @@ export async function updateEventBudgetAction(formData: FormData): Promise<{ suc
 
 export async function updateEventBudgetFormAction(formData: FormData): Promise<void> {
   const result = await updateEventBudgetAction(formData);
+  if (!result.success) {
+    throw new Error(result.message);
+  }
+}
+
+function parseOptionalInteger(input: string): number | null {
+  const raw = input.trim();
+  if (!raw) {
+    return null;
+  }
+
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error('QR scan goal must be a valid whole number');
+  }
+
+  return value;
+}
+
+export async function updateEventPlaybookAction(formData: FormData): Promise<{ success: boolean; message: string }> {
+  try {
+    const user = await requireEditPermission();
+    const eventId = String(formData.get('eventId') ?? '').trim();
+
+    if (!eventId) {
+      throw new Error('Event is required');
+    }
+
+    const context = await assertEventEditableByRole({
+      eventId,
+      role: user.role
+    });
+
+    await updateEventPlaybook(eventId, {
+      purpose: String(formData.get('purpose') ?? '').trim(),
+      goals: parseMultilineList(String(formData.get('goals') ?? '')),
+      qrScanGoal: parseOptionalInteger(String(formData.get('qrScanGoal') ?? '')),
+      theme: String(formData.get('theme') ?? '').trim(),
+      location: String(formData.get('location') ?? '').trim(),
+      startTime: String(formData.get('startTime') ?? '').trim(),
+      endTime: String(formData.get('endTime') ?? '').trim(),
+      coreActivities: {
+        foodAndRefreshments: String(formData.get('coreFoodAndRefreshments') ?? '').trim(),
+        entertainment: String(formData.get('coreEntertainment') ?? '').trim(),
+        bikeActivity: String(formData.get('coreBikeActivity') ?? '').trim(),
+        engagementOpportunity: String(formData.get('coreEngagementOpportunity') ?? '').trim()
+      },
+      preEventPreparation: parseMultilineList(String(formData.get('preEventPreparation') ?? '')),
+      marketingAssets: parseMultilineList(String(formData.get('marketingAssets') ?? '')),
+      internalCommunication: parseMultilineList(String(formData.get('internalCommunication') ?? '')),
+      layoutPlan: String(formData.get('layoutPlan') ?? '').trim(),
+      checklist: parseChecklistInput(String(formData.get('checklist') ?? '')),
+      weekFlow: {
+        monday: parseMultilineList(String(formData.get('weekMonday') ?? '')),
+        tuesday: parseMultilineList(String(formData.get('weekTuesday') ?? '')),
+        wednesday: parseMultilineList(String(formData.get('weekWednesday') ?? '')),
+        friday: parseMultilineList(String(formData.get('weekFriday') ?? '')),
+        saturday: parseMultilineList(String(formData.get('weekSaturday') ?? ''))
+      },
+      postEventFollowUp: {
+        within24Hours: parseMultilineList(String(formData.get('followUpWithin24Hours') ?? '')),
+        within3Days: parseMultilineList(String(formData.get('followUpWithin3Days') ?? '')),
+        managerMeeting: parseMultilineList(String(formData.get('followUpManagerMeeting') ?? ''))
+      },
+      rolesAndResponsibilities: {
+        marketingLead: String(formData.get('roleMarketingLead') ?? '').trim(),
+        salesTeam: String(formData.get('roleSalesTeam') ?? '').trim(),
+        serviceTeam: String(formData.get('roleServiceTeam') ?? '').trim(),
+        motorClothes: String(formData.get('roleMotorClothes') ?? '').trim(),
+        gmOwner: String(formData.get('roleGmOwner') ?? '').trim(),
+        volunteersOrCharities: String(formData.get('roleVolunteersOrCharities') ?? '').trim()
+      },
+      successMetrics: parseMultilineList(String(formData.get('successMetrics') ?? '')),
+      reusableAssets: parseMultilineList(String(formData.get('reusableAssets') ?? ''))
+    });
+
+    if (context.status === 'COMPLETED' && user.role === 'ADMIN') {
+      await logActivity({
+        userId: user.id,
+        action: 'EVENT_EDITED_AFTER_COMPLETION',
+        entityType: 'EVENT',
+        entityId: eventId
+      });
+    }
+
+    await logActivity({
+      userId: user.id,
+      action: 'EVENT_PLAYBOOK_UPDATED',
+      entityType: 'EVENT',
+      entityId: eventId
+    });
+
+    revalidatePath('/');
+    revalidatePath('/events');
+    revalidatePath(`/events/${eventId}`);
+
+    return { success: true, message: 'Event playbook updated' };
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : 'Failed to update event playbook' };
+  }
+}
+
+export async function updateEventPlaybookFormAction(formData: FormData): Promise<void> {
+  const result = await updateEventPlaybookAction(formData);
   if (!result.success) {
     throw new Error(result.message);
   }

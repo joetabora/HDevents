@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db/prisma';
 import { type Category, type EventStatus, type ItemStatus } from '@/lib/types/domain';
 import { saveItemDocuments, resolveFileAbsolutePath } from '@/modules/documents/services';
 import type { UserRole } from '@/modules/users/constants';
+import { defaultEventPlaybook, type EventPlaybook } from './playbook';
 import { generateEventArchiveVersion, regenerateEventArchiveFiles } from './services/archiveGenerator';
 
 export type EventWithItems = Prisma.EventGetPayload<{
@@ -110,6 +111,7 @@ export async function createEvent(params: {
       date: params.date,
       budget: params.budget,
       eventType: params.eventType ?? null,
+      playbook: defaultEventPlaybook(),
       createdById: params.createdById ?? null,
       assignedToId: params.assignedToId ?? null
     }
@@ -287,6 +289,15 @@ export async function updateEventBudget(eventId: string, budget: number) {
   return prisma.event.update({
     where: { id: eventId },
     data: { budget }
+  });
+}
+
+export async function updateEventPlaybook(eventId: string, playbook: EventPlaybook) {
+  return prisma.event.update({
+    where: { id: eventId },
+    data: {
+      playbook
+    }
   });
 }
 
