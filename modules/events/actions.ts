@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { deleteDocument } from '@/modules/documents/services';
+import { syncPlaybookTasks } from '@/modules/tasks/services';
 import { logActivity } from '@/modules/users/activity';
 import { requireBudgetPermission, requireDeletePermission, requireEditPermission } from '@/modules/users/server';
 import {
@@ -263,7 +264,7 @@ export async function updateEventPlaybookAction(formData: FormData): Promise<{ s
       role: user.role
     });
 
-    await updateEventPlaybook(eventId, {
+    const nextPlaybook = {
       purpose: String(formData.get('purpose') ?? '').trim(),
       goals: String(formData.get('goalsJson') ?? '').trim()
         ? parseStringListJson(String(formData.get('goalsJson') ?? ''))
@@ -318,6 +319,13 @@ export async function updateEventPlaybookAction(formData: FormData): Promise<{ s
       reusableAssets: String(formData.get('reusableAssetsJson') ?? '').trim()
         ? parseStringListJson(String(formData.get('reusableAssetsJson') ?? ''))
         : parseMultilineList(String(formData.get('reusableAssets') ?? ''))
+    };
+
+    await updateEventPlaybook(eventId, nextPlaybook);
+    const taskSync = await syncPlaybookTasks({
+      eventId,
+      playbook: nextPlaybook,
+      createdById: user.id
     });
 
     if (context.status === 'COMPLETED' && user.role === 'ADMIN') {
@@ -336,9 +344,21 @@ export async function updateEventPlaybookAction(formData: FormData): Promise<{ s
       entityId: eventId
     });
 
+    if (taskSync.created > 0 || taskSync.updated > 0 || taskSync.removed > 0) {
+      await logActivity({
+        userId: user.id,
+        action: 'EVENT_PLAYBOOK_REMINDERS_SYNCED',
+        entityType: 'EVENT',
+        entityId: eventId
+      });
+    }
+
     revalidatePath('/');
     revalidatePath('/events');
     revalidatePath(`/events/${eventId}`);
+    revalidatePath('/tasks');
+    revalidatePath('/tasks/mine');
+    revalidatePath('/executive');
 
     return { success: true, message: 'Event playbook updated' };
   } catch (error) {

@@ -144,6 +144,9 @@ export function PlaybookPanel({
             <p className="mt-1 text-xs text-[#A1A1AA]">
               Operational brief with owner-based execution tracking for prep, event week, and follow-up.
             </p>
+            <p className="mt-1 text-xs text-[#71717A]">
+              Rows with both an owner and due date automatically sync into the event task list.
+            </p>
           </div>
         </div>
 

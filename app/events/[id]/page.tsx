@@ -17,6 +17,7 @@ import { listContactLinkOptions, listContactsForSelection } from '@/modules/cont
 import { getEventPlaybook } from '@/modules/events/playbook';
 import { buildEventDebriefContext } from '@/modules/events/services/aiDebriefService';
 import { getEventById, getEventFinancials, groupItemsByCategory } from '@/modules/events/services';
+import { listTasksForEvent } from '@/modules/tasks/services';
 import { canDeleteRecords, canEditContent } from '@/modules/users/permissions';
 import { requireCurrentUserPage } from '@/modules/users/server';
 import { listUserOptions } from '@/modules/users/services';
@@ -37,12 +38,13 @@ export default async function EventPage({
   const allowEditByRole = canEditContent(currentUser.role);
   const isAdmin = currentUser.role === 'ADMIN';
 
-  const [event, contacts, financials, userOptions, crmContacts] = await Promise.all([
+  const [event, contacts, financials, userOptions, crmContacts, eventTasks] = await Promise.all([
     getEventById(eventId),
     listContactsForSelection(),
     getEventFinancials(eventId),
     allowEditByRole ? listUserOptions() : Promise.resolve([]),
-    allowEditByRole ? listContactLinkOptions() : Promise.resolve([])
+    allowEditByRole ? listContactLinkOptions() : Promise.resolve([]),
+    listTasksForEvent(eventId)
   ]);
 
   if (!event) {
@@ -181,6 +183,58 @@ export default async function EventPage({
       ) : (
         <>
           <BudgetCards totalBudget={event.budget} allocated={financials.totalAllocated} remaining={financials.remainingBudget} />
+
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#FAFAFA]">Event Task Center</h2>
+                <p className="mt-1 text-xs text-[#A1A1AA]">Manual tasks and auto-synced reminders for this event.</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-[#A1A1AA]">
+                <span>{eventTasks.filter((task) => !task.completed).length} open</span>
+                <span>{eventTasks.filter((task) => task.isOverdue).length} overdue</span>
+                <span>{eventTasks.filter((task) => task.isPlaybookAutoTask).length} auto</span>
+              </div>
+            </div>
+
+            {eventTasks.length === 0 ? (
+              <p className="mt-4 text-sm text-[#A1A1AA]">No tasks linked to this event yet.</p>
+            ) : (
+              <div className="mt-4 space-y-2">
+                {eventTasks.slice(0, 8).map((task) => (
+                  <div key={task.id} className="flex flex-col gap-2 rounded-2xl border border-[#27272A] bg-[#111113] p-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className={`text-sm font-semibold ${task.completed ? 'text-[#A1A1AA]' : 'text-[#FAFAFA]'}`}>{task.title}</p>
+                        {task.isPlaybookAutoTask ? (
+                          <span className="rounded-full border border-[#C2410C]/30 bg-[#C2410C]/10 px-2 py-0.5 text-[11px] font-semibold text-[#FDBA74]">
+                            Auto
+                          </span>
+                        ) : null}
+                        {task.isOverdue ? (
+                          <span className="rounded-full border border-[#C2410C]/30 bg-[#C2410C]/10 px-2 py-0.5 text-[11px] font-semibold text-[#FDBA74]">
+                            Overdue
+                          </span>
+                        ) : null}
+                        {task.isDueToday ? (
+                          <span className="rounded-full border border-[#27272A] px-2 py-0.5 text-[11px] font-semibold text-[#FAFAFA]">
+                            Due Today
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 text-xs text-[#A1A1AA]">
+                        {task.completed ? 'Completed' : 'Open'} · Assigned to {task.assignedTo?.name ?? 'Unassigned'}
+                        {task.dueDate ? ` · Due ${formatDate(task.dueDate)}` : ''}
+                      </p>
+                    </div>
+                    <span className="text-xs text-[#71717A]">
+                      {task.isPlaybookAutoTask ? 'Synced from playbook' : 'Manual event task'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
 
           <Card>
             <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#FAFAFA]">Event Contacts</h2>
