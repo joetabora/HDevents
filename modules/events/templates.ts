@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db/prisma';
 import type { Category, EventType } from '@/lib/types/domain';
+import { defaultEventPlaybook } from './playbook';
 
 type BudgetCategoryRow = {
   category: Category;
@@ -477,6 +478,39 @@ export async function createEventFromTemplate(params: {
     ...backupVendors.filter((vendor) => selectedBackupVendorIds.has(vendor.vendorId) || autoSuggestedBackupIds.has(vendor.vendorId))
   ];
 
+  const playbook = defaultEventPlaybook();
+  const checklistRows = template.taskChecklist
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry, index) => ({
+      id: `template-checklist-${index + 1}`,
+      title: entry,
+      item: entry,
+      description: '',
+      ownerId: params.assignedToId ?? '',
+      dueDate: '',
+      status: 'NOT_STARTED' as const,
+      completed: false,
+      notes: ''
+    }));
+
+  const milestoneRows = template.timelineMilestones
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry, index) => {
+      const title = entry.includes(':') ? entry.split(':').slice(1).join(':').trim() || entry : entry;
+      const dueDate = milestoneDueDateFromEntry(entry, params.date, index + 1, template.timelineMilestones.length);
+      return {
+        id: `template-milestone-${index + 1}`,
+        title,
+        ownerId: params.assignedToId ?? '',
+        dueDate: dueDate ? dueDate.toISOString().slice(0, 10) : '',
+        status: 'NOT_STARTED' as const,
+        completed: false,
+        notes: ''
+      };
+    });
+
   const createdEvent = await prisma.event.create({
     data: {
       name: params.name.trim(),
@@ -485,6 +519,15 @@ export async function createEventFromTemplate(params: {
       status: 'PLANNING',
       eventType: params.eventType ?? template.eventType ?? null,
       templateId: template.id,
+      playbook: {
+        ...playbook,
+        theme: template.name,
+        checklist: checklistRows.length > 0 ? checklistRows : playbook.checklist,
+        weekFlow: {
+          ...playbook.weekFlow,
+          monday: milestoneRows
+        }
+      },
       createdById: params.createdById ?? null,
       assignedToId: params.assignedToId ?? null
     }
@@ -540,4 +583,77 @@ export async function createEventFromTemplate(params: {
       .filter((vendor) => autoSuggestedBackupIds.has(vendor.vendorId))
       .map((vendor) => vendor.vendor.businessName)
   };
+}
+
+export async function duplicateEvent(params: {
+  eventId: string;
+  name: string;
+  date: Date;
+  budget: number;
+  assignedToId?: string | null;
+  createdById?: string | null;
+}) {
+  const source = await prisma.event.findUnique({
+    where: { id: params.eventId },
+    include: {
+      items: true
+    }
+  });
+
+  if (!source) {
+    throw new Error('Source event not found');
+  }
+
+  const tasks = await prisma.task.findMany({
+    where: {
+      relatedType: 'EVENT',
+      relatedId: source.id
+    },
+    orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }]
+  });
+
+  const duplicated = await prisma.event.create({
+    data: {
+      name: params.name.trim(),
+      date: params.date,
+      budget: params.budget,
+      eventType: source.eventType,
+      status: 'PLANNING',
+      templateId: source.templateId,
+      playbook: source.playbook ?? defaultEventPlaybook(),
+      createdById: params.createdById ?? null,
+      assignedToId: params.assignedToId ?? null
+    }
+  });
+
+  if (source.items.length > 0) {
+    await prisma.item.createMany({
+      data: source.items.map((item) => ({
+        eventId: duplicated.id,
+        name: item.name,
+        category: item.category,
+        fee: item.fee,
+        status: item.status,
+        notes: item.notes,
+        contactId: item.contactId
+      }))
+    });
+  }
+
+  if (tasks.length > 0) {
+    await prisma.task.createMany({
+      data: tasks.map((task) => ({
+        title: task.title,
+        description: task.description,
+        relatedType: 'EVENT',
+        relatedId: duplicated.id,
+        assignedToId: params.assignedToId ?? task.assignedToId ?? null,
+        dueDate: task.dueDate,
+        completed: false,
+        createdById: params.createdById ?? null
+      }))
+    });
+  }
+
+  return duplicated;
 }

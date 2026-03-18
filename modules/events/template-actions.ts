@@ -7,6 +7,7 @@ import { requireEditPermission } from '@/modules/users/server';
 import {
   archiveEventTemplate,
   createEventFromTemplate,
+  duplicateEvent,
   duplicateEventTemplate,
   saveEventAsTemplate,
   updateEventTemplate
@@ -234,5 +235,43 @@ export async function archiveEventTemplateAction(formData: FormData): Promise<{ 
     return { success: true, message: 'Template archived' };
   } catch (error) {
     return { success: false, message: error instanceof Error ? error.message : 'Failed to archive template' };
+  }
+}
+
+export async function duplicateEventAction(formData: FormData): Promise<{ success: boolean; message: string; eventId?: string }> {
+  try {
+    const user = await requireEditPermission();
+    const eventId = String(formData.get('eventId') ?? '').trim();
+    const name = String(formData.get('name') ?? '').trim();
+    const dateInput = String(formData.get('date') ?? '').trim();
+    const budgetInput = String(formData.get('budget') ?? '').trim();
+    const assignedToId = String(formData.get('assignedToId') ?? '').trim() || null;
+
+    if (!eventId || !name || !dateInput || !budgetInput) {
+      throw new Error('Missing required fields for event duplication');
+    }
+
+    const duplicated = await duplicateEvent({
+      eventId,
+      name,
+      date: parseDate(dateInput),
+      budget: parseBudget(budgetInput),
+      assignedToId,
+      createdById: user.id
+    });
+
+    await logActivity({
+      userId: user.id,
+      action: 'EVENT_DUPLICATED',
+      entityType: 'EVENT',
+      entityId: duplicated.id
+    });
+
+    revalidateTemplatePaths(duplicated.id);
+    revalidatePath('/tasks');
+    revalidatePath('/tasks/mine');
+    return { success: true, message: 'Event duplicated', eventId: duplicated.id };
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : 'Failed to duplicate event' };
   }
 }

@@ -38,6 +38,102 @@ function createClientChecklistItem(item = ''): EventPlaybookChecklistItem {
   };
 }
 
+function StringListRows({
+  title,
+  items,
+  onAdd,
+  onUpdate,
+  onRemove,
+  placeholder
+}: {
+  title: string;
+  items: string[];
+  onAdd: () => void;
+  onUpdate: (index: number, value: string) => void;
+  onRemove: (index: number) => void;
+  placeholder: string;
+}) {
+  return (
+    <div className="space-y-3 rounded-2xl border border-[#27272A] bg-[#111113] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#FAFAFA]">{title}</h3>
+        <Button type="button" variant="secondary" className="px-3 py-1.5" onClick={onAdd}>
+          <Plus className="h-3.5 w-3.5" />
+          Add Row
+        </Button>
+      </div>
+
+      {items.length === 0 ? (
+        <p className="text-sm text-[#A1A1AA]">No items added yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {items.map((item, index) => (
+            <div key={`${title}-${index}`} className="flex gap-3 rounded-2xl border border-[#27272A] bg-[#18181B] p-3">
+              <input value={item} placeholder={placeholder} onChange={(event) => onUpdate(index, event.target.value)} />
+              <Button type="button" variant="danger" className="px-3 py-1.5" onClick={() => onRemove(index)}>
+                <Trash2 className="h-3.5 w-3.5" />
+                Remove
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RoleAssignmentField({
+  label,
+  name,
+  value,
+  users
+}: {
+  label: string;
+  name: string;
+  value: string;
+  users: UserOption[];
+}) {
+  const hasMatchingUser = users.some((user) => user.name === value);
+  const [selectedValue, setSelectedValue] = useState(hasMatchingUser ? value : value ? '__custom' : '');
+  const [customValue, setCustomValue] = useState(hasMatchingUser ? '' : value);
+  const formValue = selectedValue === '__custom' ? customValue : selectedValue;
+
+  return (
+    <div className="space-y-2 rounded-2xl border border-[#27272A] bg-[#111113] p-4">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">{label}</p>
+        <p className="mt-1 text-xs text-[#71717A]">Assign a team member directly or keep a custom responsibility label.</p>
+      </div>
+
+      <select
+        value={selectedValue}
+        onChange={(event) => {
+          const nextValue = event.target.value;
+          setSelectedValue(nextValue);
+
+          if (nextValue !== '__custom') {
+            setCustomValue('');
+          }
+        }}
+      >
+        <option value="">Unassigned</option>
+        {users.map((user) => (
+          <option key={user.id} value={user.name}>
+            {user.name} ({user.email})
+          </option>
+        ))}
+        <option value="__custom">Custom</option>
+      </select>
+
+      {selectedValue === '__custom' ? (
+        <input value={customValue} placeholder="Custom assignment" onChange={(event) => setCustomValue(event.target.value)} />
+      ) : null}
+
+      <input type="hidden" name={name} value={formValue} />
+    </div>
+  );
+}
+
 function ExecutionRows({
   title,
   items,
@@ -229,14 +325,30 @@ export function PlaybookEditor({
   const [followUpWithin24Hours, setFollowUpWithin24Hours] = useState(playbook.postEventFollowUp.within24Hours);
   const [followUpWithin3Days, setFollowUpWithin3Days] = useState(playbook.postEventFollowUp.within3Days);
   const [followUpManagerMeeting, setFollowUpManagerMeeting] = useState(playbook.postEventFollowUp.managerMeeting);
+  const [goals, setGoals] = useState(playbook.goals);
+  const [preEventPreparation, setPreEventPreparation] = useState(playbook.preEventPreparation);
+  const [marketingAssets, setMarketingAssets] = useState(playbook.marketingAssets);
+  const [internalCommunication, setInternalCommunication] = useState(playbook.internalCommunication);
+  const [successMetrics, setSuccessMetrics] = useState(playbook.successMetrics);
+  const [reusableAssets, setReusableAssets] = useState(playbook.reusableAssets);
 
   function updateExecutionList<T extends EventPlaybookExecutionItem>(items: T[], index: number, nextItem: T) {
     return items.map((item, itemIndex) => (itemIndex === index ? nextItem : item));
   }
 
+  function updateStringList(items: string[], index: number, nextValue: string) {
+    return items.map((item, itemIndex) => (itemIndex === index ? nextValue : item));
+  }
+
   return (
     <form action={updateEventPlaybookFormAction} className="mt-6 space-y-8">
       <input type="hidden" name="eventId" value={eventId} />
+      <input type="hidden" name="goalsJson" value={JSON.stringify(goals.filter((item) => item.trim()))} />
+      <input type="hidden" name="preEventPreparationJson" value={JSON.stringify(preEventPreparation.filter((item) => item.trim()))} />
+      <input type="hidden" name="marketingAssetsJson" value={JSON.stringify(marketingAssets.filter((item) => item.trim()))} />
+      <input type="hidden" name="internalCommunicationJson" value={JSON.stringify(internalCommunication.filter((item) => item.trim()))} />
+      <input type="hidden" name="successMetricsJson" value={JSON.stringify(successMetrics.filter((item) => item.trim()))} />
+      <input type="hidden" name="reusableAssetsJson" value={JSON.stringify(reusableAssets.filter((item) => item.trim()))} />
       <input type="hidden" name="checklistJson" value={JSON.stringify(checklist)} />
       <input type="hidden" name="weekMondayJson" value={JSON.stringify(weekMonday)} />
       <input type="hidden" name="weekTuesdayJson" value={JSON.stringify(weekTuesday)} />
@@ -251,11 +363,6 @@ export function PlaybookEditor({
         <label className="md:col-span-2">
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Purpose</span>
           <textarea name="purpose" rows={4} defaultValue={playbook.purpose} />
-        </label>
-
-        <label className="md:col-span-2">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Goals</span>
-          <textarea name="goals" rows={4} defaultValue={playbook.goals.join('\n')} />
         </label>
 
         <label>
@@ -284,6 +391,15 @@ export function PlaybookEditor({
         </label>
       </section>
 
+      <StringListRows
+        title="Goals"
+        items={goals}
+        placeholder="Add an outcome or target"
+        onAdd={() => setGoals((prev) => [...prev, ''])}
+        onUpdate={(index, value) => setGoals((prev) => updateStringList(prev, index, value))}
+        onRemove={(index) => setGoals((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
+      />
+
       <section className="grid gap-4 md:grid-cols-2">
         <label>
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Food & Refreshments</span>
@@ -306,22 +422,36 @@ export function PlaybookEditor({
         </label>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <label>
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Pre-Event Preparation</span>
-          <textarea name="preEventPreparation" rows={6} defaultValue={playbook.preEventPreparation.join('\n')} />
-        </label>
+      <section className="grid gap-4 xl:grid-cols-3">
+        <StringListRows
+          title="Pre-Event Preparation"
+          items={preEventPreparation}
+          placeholder="Add a prep action"
+          onAdd={() => setPreEventPreparation((prev) => [...prev, ''])}
+          onUpdate={(index, value) => setPreEventPreparation((prev) => updateStringList(prev, index, value))}
+          onRemove={(index) => setPreEventPreparation((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
+        />
 
-        <label>
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Marketing Assets</span>
-          <textarea name="marketingAssets" rows={6} defaultValue={playbook.marketingAssets.join('\n')} />
-        </label>
+        <StringListRows
+          title="Marketing Assets"
+          items={marketingAssets}
+          placeholder="Add a marketing deliverable"
+          onAdd={() => setMarketingAssets((prev) => [...prev, ''])}
+          onUpdate={(index, value) => setMarketingAssets((prev) => updateStringList(prev, index, value))}
+          onRemove={(index) => setMarketingAssets((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
+        />
 
-        <label>
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Internal Communication</span>
-          <textarea name="internalCommunication" rows={6} defaultValue={playbook.internalCommunication.join('\n')} />
-        </label>
+        <StringListRows
+          title="Internal Communication"
+          items={internalCommunication}
+          placeholder="Add an internal comms checkpoint"
+          onAdd={() => setInternalCommunication((prev) => [...prev, ''])}
+          onUpdate={(index, value) => setInternalCommunication((prev) => updateStringList(prev, index, value))}
+          onRemove={(index) => setInternalCommunication((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
+        />
+      </section>
 
+      <section className="grid gap-4">
         <label>
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Layout Plan</span>
           <textarea name="layoutPlan" rows={6} defaultValue={playbook.layoutPlan} />
@@ -415,47 +545,52 @@ export function PlaybookEditor({
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">
-        <label>
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Marketing Lead</span>
-          <input name="roleMarketingLead" defaultValue={playbook.rolesAndResponsibilities.marketingLead} />
-        </label>
-
-        <label>
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Sales Team</span>
-          <input name="roleSalesTeam" defaultValue={playbook.rolesAndResponsibilities.salesTeam} />
-        </label>
-
-        <label>
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Service Team</span>
-          <input name="roleServiceTeam" defaultValue={playbook.rolesAndResponsibilities.serviceTeam} />
-        </label>
-
-        <label>
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">MotorClothes</span>
-          <input name="roleMotorClothes" defaultValue={playbook.rolesAndResponsibilities.motorClothes} />
-        </label>
-
-        <label>
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">GM / Owner</span>
-          <input name="roleGmOwner" defaultValue={playbook.rolesAndResponsibilities.gmOwner} />
-        </label>
-
-        <label>
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Volunteers / Charities</span>
-          <input name="roleVolunteersOrCharities" defaultValue={playbook.rolesAndResponsibilities.volunteersOrCharities} />
-        </label>
+        <RoleAssignmentField
+          label="Marketing Lead"
+          name="roleMarketingLead"
+          value={playbook.rolesAndResponsibilities.marketingLead}
+          users={users}
+        />
+        <RoleAssignmentField label="Sales Team" name="roleSalesTeam" value={playbook.rolesAndResponsibilities.salesTeam} users={users} />
+        <RoleAssignmentField
+          label="Service Team"
+          name="roleServiceTeam"
+          value={playbook.rolesAndResponsibilities.serviceTeam}
+          users={users}
+        />
+        <RoleAssignmentField
+          label="MotorClothes"
+          name="roleMotorClothes"
+          value={playbook.rolesAndResponsibilities.motorClothes}
+          users={users}
+        />
+        <RoleAssignmentField label="GM / Owner" name="roleGmOwner" value={playbook.rolesAndResponsibilities.gmOwner} users={users} />
+        <RoleAssignmentField
+          label="Volunteers / Charities"
+          name="roleVolunteersOrCharities"
+          value={playbook.rolesAndResponsibilities.volunteersOrCharities}
+          users={users}
+        />
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <label>
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Success Metrics</span>
-          <textarea name="successMetrics" rows={6} defaultValue={playbook.successMetrics.join('\n')} />
-        </label>
+      <section className="grid gap-4 xl:grid-cols-2">
+        <StringListRows
+          title="Success Metrics"
+          items={successMetrics}
+          placeholder="Add a KPI or measurement"
+          onAdd={() => setSuccessMetrics((prev) => [...prev, ''])}
+          onUpdate={(index, value) => setSuccessMetrics((prev) => updateStringList(prev, index, value))}
+          onRemove={(index) => setSuccessMetrics((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
+        />
 
-        <label>
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Reusable Assets</span>
-          <textarea name="reusableAssets" rows={6} defaultValue={playbook.reusableAssets.join('\n')} />
-        </label>
+        <StringListRows
+          title="Reusable Assets"
+          items={reusableAssets}
+          placeholder="Add a reusable asset or template"
+          onAdd={() => setReusableAssets((prev) => [...prev, ''])}
+          onUpdate={(index, value) => setReusableAssets((prev) => updateStringList(prev, index, value))}
+          onRemove={(index) => setReusableAssets((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
+        />
       </section>
 
       <div className="flex justify-end">

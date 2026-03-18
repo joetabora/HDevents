@@ -430,3 +430,16 @@ export function parseChecklistJson(value: string): EventPlaybookChecklistItem[] 
     throw new Error('Checklist payload is invalid');
   }
 }
+
+export function parseStringListJson(value: string): string[] {
+  if (!value.trim()) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return asStringArray(parsed);
+  } catch {
+    throw new Error('List payload is invalid');
+  }
+}

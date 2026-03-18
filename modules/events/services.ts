@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db/prisma';
 import { type Category, type EventStatus, type ItemStatus } from '@/lib/types/domain';
 import { saveItemDocuments, resolveFileAbsolutePath } from '@/modules/documents/services';
 import type { UserRole } from '@/modules/users/constants';
-import { defaultEventPlaybook, type EventPlaybook } from './playbook';
+import { defaultEventPlaybook, getEventPlaybook, type EventPlaybook, type EventPlaybookExecutionItem } from './playbook';
 import { generateEventArchiveVersion, regenerateEventArchiveFiles } from './services/archiveGenerator';
 
 export type EventWithItems = Prisma.EventGetPayload<{
@@ -66,12 +66,36 @@ export type EventWithItems = Prisma.EventGetPayload<{
   };
 }>;
 
+function flattenExecutionItems(playbook: EventPlaybook): EventPlaybookExecutionItem[] {
+  return [
+    ...playbook.checklist,
+    ...playbook.weekFlow.monday,
+    ...playbook.weekFlow.tuesday,
+    ...playbook.weekFlow.wednesday,
+    ...playbook.weekFlow.friday,
+    ...playbook.weekFlow.saturday,
+    ...playbook.postEventFollowUp.within24Hours,
+    ...playbook.postEventFollowUp.within3Days,
+    ...playbook.postEventFollowUp.managerMeeting
+  ];
+}
+
+function parseDueDate(value: string): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export async function listEvents() {
   const events = await prisma.event.findMany({
     include: {
       items: {
         select: {
-          fee: true
+          fee: true,
+          status: true
         }
       }
     },
@@ -80,6 +104,29 @@ export async function listEvents() {
 
   return events.map((event) => {
     const totalAllocated = event.items.reduce((sum, item) => sum + item.fee, 0);
+    const lockedItemsCount = event.items.filter((item) => item.status === 'LOCKED_IN').length;
+    const playbook = getEventPlaybook(event.playbook);
+    const executionItems = flattenExecutionItems(playbook);
+    const completedExecutionCount = executionItems.filter((item) => item.completed).length;
+    const assignedExecutionCount = executionItems.filter((item) => item.ownerId).length;
+    const openExecutionCount = executionItems.length - completedExecutionCount;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const nextDueItems = executionItems
+      .filter((item) => !item.completed)
+      .map((item) => ({
+        ...item,
+        parsedDueDate: parseDueDate(item.dueDate)
+      }))
+      .filter((item): item is EventPlaybookExecutionItem & { parsedDueDate: Date } => Boolean(item.parsedDueDate))
+      .sort((left, right) => left.parsedDueDate.getTime() - right.parsedDueDate.getTime())
+      .slice(0, 2)
+      .map((item) => ({
+        id: item.id,
+        title: item.title,
+        dueDate: item.dueDate,
+        overdue: item.parsedDueDate.getTime() < today.getTime()
+      }));
 
     return {
       id: event.id,
@@ -88,11 +135,20 @@ export async function listEvents() {
       budget: event.budget,
       eventType: event.eventType,
       status: event.status,
+      archiveVersion: event.archiveVersion,
+      completedAt: event.completedAt,
       createdAt: event.createdAt,
       updatedAt: event.updatedAt,
       totalAllocated,
       remainingBudget: event.budget - totalAllocated,
-      itemsCount: event.items.length
+      itemsCount: event.items.length,
+      lockedItemsCount,
+      playbookCompletionPercent: executionItems.length > 0 ? Math.round((completedExecutionCount / executionItems.length) * 100) : 0,
+      executionTotalCount: executionItems.length,
+      completedExecutionCount,
+      openExecutionCount,
+      assignedExecutionCount,
+      nextDueItems
     };
   });
 }

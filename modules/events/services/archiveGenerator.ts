@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { prisma } from '@/lib/db/prisma';
 import { resolveFileAbsolutePath } from '@/modules/documents/services';
+import { getEventPlaybook, type EventPlaybook, type EventPlaybookExecutionItem } from '@/modules/events/playbook';
 import { writeBinaryToStorage } from '@/lib/utils/file-storage';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 
@@ -127,6 +128,49 @@ function buildSocialCsv(
     .join('\n');
 }
 
+function flattenExecutionSections(playbook: EventPlaybook) {
+  return [
+    ...playbook.checklist.map((item) => ({ section: 'Checklist', ...item })),
+    ...playbook.weekFlow.monday.map((item) => ({ section: 'Monday', ...item })),
+    ...playbook.weekFlow.tuesday.map((item) => ({ section: 'Tuesday', ...item })),
+    ...playbook.weekFlow.wednesday.map((item) => ({ section: 'Wednesday', ...item })),
+    ...playbook.weekFlow.friday.map((item) => ({ section: 'Friday', ...item })),
+    ...playbook.weekFlow.saturday.map((item) => ({ section: 'Saturday', ...item })),
+    ...playbook.postEventFollowUp.within24Hours.map((item) => ({ section: 'Follow-up 24 Hours', ...item })),
+    ...playbook.postEventFollowUp.within3Days.map((item) => ({ section: 'Follow-up 3 Days', ...item })),
+    ...playbook.postEventFollowUp.managerMeeting.map((item) => ({ section: 'Manager Meeting', ...item }))
+  ];
+}
+
+function buildExecutionCsv(
+  items: Array<{
+    section: string;
+    title: string;
+    ownerName: string;
+    dueDate: string;
+    status: string;
+    completed: boolean;
+    notes: string;
+  }>
+) {
+  const rows = [
+    ['Section', 'Title', 'Owner', 'Due Date', 'Status', 'Completed', 'Notes'],
+    ...items.map((item) => [
+      item.section,
+      item.title,
+      item.ownerName,
+      item.dueDate,
+      item.status,
+      item.completed ? 'YES' : 'NO',
+      item.notes
+    ])
+  ];
+
+  return rows
+    .map((row) => row.map((cell) => csvEscape(cell as string | number | null | undefined)).join(','))
+    .join('\n');
+}
+
 async function buildEventSummaryPdf(params: {
   event: {
     name: string;
@@ -138,6 +182,16 @@ async function buildEventSummaryPdf(params: {
     finalNotes: string | null;
     archiveVersion: number;
   };
+  playbook: EventPlaybook;
+  execution: Array<{
+    section: string;
+    title: string;
+    ownerName: string;
+    dueDate: string;
+    status: string;
+    completed: boolean;
+    notes: string;
+  }>;
   generatedAt: Date;
   generatedByName: string;
   items: Array<{ name: string; category: string; fee: number; status: string; contactName: string; businessName: string }>;
@@ -160,6 +214,9 @@ async function buildEventSummaryPdf(params: {
   const text = rgb(0.98, 0.98, 0.98);
   const muted = rgb(0.66, 0.66, 0.7);
   const accent = rgb(1, 0.42, 0);
+  const completedExecution = params.execution.filter((item) => item.completed).length;
+  const openExecution = params.execution.length - completedExecution;
+  const unresolvedExecution = params.execution.filter((item) => !item.completed).slice(0, 8);
 
   const drawFooter = (page: import('pdf-lib').PDFPage, pageNumber: number, totalPages: number) => {
     const footerY = 20;
@@ -192,13 +249,14 @@ async function buildEventSummaryPdf(params: {
   cover.drawText('Event Summary Archive', { x: 48, y: 648, size: 14, font: fontRegular, color: muted });
   cover.drawRectangle({ x: 48, y: 596, width: 516, height: 1, color: accent });
   cover.drawText(`Date: ${formatDate(params.event.date)}`, { x: 48, y: 560, size: 12, font: fontRegular, color: text });
-  cover.drawText(`Location: Not specified`, { x: 48, y: 540, size: 12, font: fontRegular, color: text });
+  cover.drawText(`Location: ${params.playbook.location || 'Not specified'}`, { x: 48, y: 540, size: 12, font: fontRegular, color: text });
   cover.drawText(`Status: ${params.event.status}`, { x: 48, y: 520, size: 12, font: fontRegular, color: text });
+  cover.drawText(`Theme: ${params.playbook.theme || 'Not specified'}`, { x: 48, y: 500, size: 12, font: fontRegular, color: text });
 
   const overview = createPage();
   overview.drawText('Overview', { x: 48, y: 720, size: 18, font: fontBold, color: text });
   overview.drawRectangle({ x: 48, y: 698, width: 516, height: 1, color: accent });
-  overview.drawText(`Description: ${params.event.finalNotes?.slice(0, 160) || 'No description provided.'}`, {
+  overview.drawText(`Purpose: ${params.playbook.purpose.slice(0, 200) || 'No purpose provided.'}`, {
     x: 48,
     y: 670,
     size: 11,
@@ -208,12 +266,54 @@ async function buildEventSummaryPdf(params: {
     lineHeight: 16
   });
   overview.drawText(`Final attendance: ${params.event.finalAttendance ?? 0}`, { x: 48, y: 610, size: 12, font: fontRegular, color: text });
-  overview.drawText(`Goals vs outcome: Goal data not captured. Outcome documented in final notes.`, {
+  overview.drawText(`QR scan goal: ${params.playbook.qrScanGoal ?? 'Not set'}`, {
     x: 48,
     y: 588,
+    size: 12,
+    font: fontRegular,
+    color: text
+  });
+  overview.drawText(`Goals: ${params.playbook.goals.join(' • ').slice(0, 260) || 'No goals provided.'}`, {
+    x: 48,
+    y: 564,
     size: 11,
     font: fontRegular,
     color: muted
+  });
+  overview.drawText(`Final notes: ${params.event.finalNotes?.slice(0, 190) || 'No final notes provided.'}`, {
+    x: 48,
+    y: 516,
+    size: 11,
+    font: fontRegular,
+    color: muted,
+    maxWidth: 516,
+    lineHeight: 16
+  });
+
+  const playbookPage = createPage();
+  playbookPage.drawText('Playbook Snapshot', { x: 48, y: 720, size: 18, font: fontBold, color: text });
+  playbookPage.drawRectangle({ x: 48, y: 698, width: 516, height: 1, color: accent });
+  const playbookLines = [
+    `Run of show: ${params.playbook.startTime} - ${params.playbook.endTime}`,
+    `Food & refreshments: ${params.playbook.coreActivities.foodAndRefreshments}`,
+    `Entertainment: ${params.playbook.coreActivities.entertainment}`,
+    `Bike activity: ${params.playbook.coreActivities.bikeActivity}`,
+    `Engagement opportunity: ${params.playbook.coreActivities.engagementOpportunity}`,
+    `Marketing lead: ${params.playbook.rolesAndResponsibilities.marketingLead || 'Unassigned'}`,
+    `Sales team: ${params.playbook.rolesAndResponsibilities.salesTeam || 'Unassigned'}`,
+    `Service team: ${params.playbook.rolesAndResponsibilities.serviceTeam || 'Unassigned'}`
+  ];
+  playbookLines.forEach((line, index) => {
+    playbookPage.drawText(line.slice(0, 110), { x: 48, y: 660 - index * 24, size: 11, font: fontRegular, color: text });
+  });
+  playbookPage.drawText(`Success metrics: ${params.playbook.successMetrics.join(' • ').slice(0, 280)}`, {
+    x: 48,
+    y: 438,
+    size: 10,
+    font: fontRegular,
+    color: muted,
+    maxWidth: 516,
+    lineHeight: 14
   });
 
   const budgetPage = createPage();
@@ -263,6 +363,38 @@ async function buildEventSummaryPdf(params: {
   marketingLines.forEach((line, index) => {
     marketing.drawText(line, { x: 48, y: 660 - index * 24, size: 12, font: fontRegular, color: text });
   });
+
+  const executionPage = createPage();
+  executionPage.drawText('Execution Record', { x: 48, y: 720, size: 18, font: fontBold, color: text });
+  executionPage.drawRectangle({ x: 48, y: 698, width: 516, height: 1, color: accent });
+  executionPage.drawText(`Completed items: ${completedExecution}`, { x: 48, y: 660, size: 12, font: fontRegular, color: text });
+  executionPage.drawText(`Open items: ${openExecution}`, { x: 220, y: 660, size: 12, font: fontRegular, color: text });
+  executionPage.drawText(`Assigned items: ${params.execution.filter((item) => item.ownerName).length}`, {
+    x: 360,
+    y: 660,
+    size: 12,
+    font: fontRegular,
+    color: text
+  });
+  executionPage.drawText('Outstanding work', { x: 48, y: 620, size: 12, font: fontBold, color: muted });
+  let executionY = 594;
+  for (const item of unresolvedExecution) {
+    executionPage.drawText(`${item.section}: ${item.title}`.slice(0, 72), {
+      x: 48,
+      y: executionY,
+      size: 10,
+      font: fontRegular,
+      color: text
+    });
+    executionPage.drawText(`${item.ownerName || 'Unassigned'} • ${item.status}${item.dueDate ? ` • ${item.dueDate}` : ''}`.slice(0, 52), {
+      x: 330,
+      y: executionY,
+      size: 9,
+      font: fontRegular,
+      color: muted
+    });
+    executionY -= 18;
+  }
 
   const debrief = createPage();
   debrief.drawText('Internal Debrief', { x: 48, y: 720, size: 18, font: fontBold, color: text });
@@ -362,6 +494,33 @@ async function generateEventArchiveArtifacts(params: {
     throw new Error('Event not found');
   }
 
+  const playbook = getEventPlaybook(event.playbook);
+  const executionItems = flattenExecutionSections(playbook);
+  const ownerIds = Array.from(new Set(executionItems.map((item) => item.ownerId).filter(Boolean)));
+  const owners = ownerIds.length
+    ? await prisma.user.findMany({
+        where: {
+          id: {
+            in: ownerIds
+          }
+        },
+        select: {
+          id: true,
+          name: true
+        }
+      })
+    : [];
+  const ownerMap = new Map(owners.map((owner) => [owner.id, owner.name]));
+  const executionWithOwners = executionItems.map((item) => ({
+    section: item.section,
+    title: String(item.title),
+    ownerName: ownerMap.get(item.ownerId) ?? '',
+    dueDate: item.dueDate,
+    status: item.status,
+    completed: item.completed,
+    notes: item.notes
+  }));
+
   const windowStart = new Date(event.date);
   windowStart.setDate(windowStart.getDate() - 14);
   const windowEnd = new Date(event.date);
@@ -420,6 +579,8 @@ async function generateEventArchiveArtifacts(params: {
       finalNotes: event.finalNotes,
       archiveVersion: params.version
     },
+    playbook,
+    execution: executionWithOwners,
     generatedAt: new Date(),
     generatedByName: params.generatedByName,
     items: event.items.map((item) => ({
@@ -480,6 +641,8 @@ async function generateEventArchiveArtifacts(params: {
       publicViews: post.publicViews
     }))
   );
+  const executionCsv = buildExecutionCsv(executionWithOwners);
+  const playbookJson = JSON.stringify(playbook, null, 2);
 
   const summaryStored = await writeBinaryToStorage({
     kind: 'reports',
@@ -516,6 +679,8 @@ async function generateEventArchiveArtifacts(params: {
   root.file('Budget-Breakdown.csv', budgetCsv);
   root.file('Vendor-List.csv', vendorCsv);
   root.file('Social-Performance.csv', socialCsv);
+  root.file('Playbook-Execution.csv', executionCsv);
+  root.file('Event-Playbook.json', playbookJson);
 
   for (const item of event.items) {
     for (const document of item.documents) {

@@ -16,7 +16,7 @@ import {
   updateEventBudget,
   updateEventPlaybook
 } from './services';
-import { parseChecklistInput, parseChecklistJson, parseExecutionItemsJson, parseMultilineList } from './playbook';
+import { parseChecklistInput, parseChecklistJson, parseExecutionItemsJson, parseMultilineList, parseStringListJson } from './playbook';
 import { parseCategory, parseItemStatus, parseOptionalEventType } from './validators';
 
 function parseBudget(input: string): number {
@@ -265,7 +265,9 @@ export async function updateEventPlaybookAction(formData: FormData): Promise<{ s
 
     await updateEventPlaybook(eventId, {
       purpose: String(formData.get('purpose') ?? '').trim(),
-      goals: parseMultilineList(String(formData.get('goals') ?? '')),
+      goals: String(formData.get('goalsJson') ?? '').trim()
+        ? parseStringListJson(String(formData.get('goalsJson') ?? ''))
+        : parseMultilineList(String(formData.get('goals') ?? '')),
       qrScanGoal: parseOptionalInteger(String(formData.get('qrScanGoal') ?? '')),
       theme: String(formData.get('theme') ?? '').trim(),
       location: String(formData.get('location') ?? '').trim(),
@@ -277,9 +279,15 @@ export async function updateEventPlaybookAction(formData: FormData): Promise<{ s
         bikeActivity: String(formData.get('coreBikeActivity') ?? '').trim(),
         engagementOpportunity: String(formData.get('coreEngagementOpportunity') ?? '').trim()
       },
-      preEventPreparation: parseMultilineList(String(formData.get('preEventPreparation') ?? '')),
-      marketingAssets: parseMultilineList(String(formData.get('marketingAssets') ?? '')),
-      internalCommunication: parseMultilineList(String(formData.get('internalCommunication') ?? '')),
+      preEventPreparation: String(formData.get('preEventPreparationJson') ?? '').trim()
+        ? parseStringListJson(String(formData.get('preEventPreparationJson') ?? ''))
+        : parseMultilineList(String(formData.get('preEventPreparation') ?? '')),
+      marketingAssets: String(formData.get('marketingAssetsJson') ?? '').trim()
+        ? parseStringListJson(String(formData.get('marketingAssetsJson') ?? ''))
+        : parseMultilineList(String(formData.get('marketingAssets') ?? '')),
+      internalCommunication: String(formData.get('internalCommunicationJson') ?? '').trim()
+        ? parseStringListJson(String(formData.get('internalCommunicationJson') ?? ''))
+        : parseMultilineList(String(formData.get('internalCommunication') ?? '')),
       layoutPlan: String(formData.get('layoutPlan') ?? '').trim(),
       checklist: String(formData.get('checklistJson') ?? '').trim()
         ? parseChecklistJson(String(formData.get('checklistJson') ?? ''))
@@ -304,8 +312,12 @@ export async function updateEventPlaybookAction(formData: FormData): Promise<{ s
         gmOwner: String(formData.get('roleGmOwner') ?? '').trim(),
         volunteersOrCharities: String(formData.get('roleVolunteersOrCharities') ?? '').trim()
       },
-      successMetrics: parseMultilineList(String(formData.get('successMetrics') ?? '')),
-      reusableAssets: parseMultilineList(String(formData.get('reusableAssets') ?? ''))
+      successMetrics: String(formData.get('successMetricsJson') ?? '').trim()
+        ? parseStringListJson(String(formData.get('successMetricsJson') ?? ''))
+        : parseMultilineList(String(formData.get('successMetrics') ?? '')),
+      reusableAssets: String(formData.get('reusableAssetsJson') ?? '').trim()
+        ? parseStringListJson(String(formData.get('reusableAssetsJson') ?? ''))
+        : parseMultilineList(String(formData.get('reusableAssets') ?? ''))
     });
 
     if (context.status === 'COMPLETED' && user.role === 'ADMIN') {
