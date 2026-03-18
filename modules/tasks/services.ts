@@ -84,6 +84,20 @@ export function isPlaybookAutoTask(description: string | null): boolean {
   return isPlaybookTaskDescription(description);
 }
 
+function formatTaskDescription(description: string | null): string | null {
+  if (!description) {
+    return null;
+  }
+
+  const cleaned = description
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith(PLAYBOOK_TASK_MARKER))
+    .join('\n');
+
+  return cleaned || null;
+}
+
 export async function syncPlaybookTasks(params: {
   eventId: string;
   playbook: EventPlaybook;
@@ -246,6 +260,7 @@ export async function listTasks() {
   }).then((tasks) => {
     return tasks.map((task) => ({
       ...task,
+      description: formatTaskDescription(task.description),
       isOverdue: !task.completed && Boolean(task.dueDate && task.dueDate < now),
       isDueToday:
         !task.completed &&
@@ -276,6 +291,7 @@ export async function listTasksForEvent(eventId: string) {
   }).then((tasks) =>
     tasks.map((task) => ({
       ...task,
+      description: formatTaskDescription(task.description),
       isOverdue: !task.completed && Boolean(task.dueDate && task.dueDate < now),
       isDueToday:
         !task.completed &&

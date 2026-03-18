@@ -8,6 +8,7 @@ import { PlaybookPanel } from '@/components/events/playbook-panel';
 import { SaveAsTemplateButton } from '@/components/events/save-as-template-button';
 import { SubmitButton } from '@/components/forms/submit-button';
 import { PageHeader } from '@/components/layout/page-header';
+import { TaskCompleteToggle } from '@/components/tasks/task-complete-toggle';
 import { FinishEventButton } from '@/components/finish-event-button';
 import { Card } from '@/components/ui/card';
 import { categoryLabels, categoryValues, eventTypeLabels } from '@/lib/utils/constants';
@@ -59,6 +60,10 @@ export default async function EventPage({
   const selectedTab = searchParams?.tab === 'operations' || searchParams?.tab === 'debrief' ? searchParams.tab : 'playbook';
   const groupedItems = groupItemsByCategory(event.items);
   const playbook = getEventPlaybook(event.playbook);
+  const openEventTasks = eventTasks.filter((task) => !task.completed);
+  const overdueEventTasks = eventTasks.filter((task) => task.isOverdue);
+  const dueTodayEventTasks = eventTasks.filter((task) => task.isDueToday);
+  const autoEventTasks = eventTasks.filter((task) => task.isPlaybookAutoTask);
 
   const debriefContext = isCompleted && selectedTab === 'debrief' ? await buildEventDebriefContext(event.id) : null;
   const latestDebriefRaw = event.debriefs[0];
@@ -191,9 +196,35 @@ export default async function EventPage({
                 <p className="mt-1 text-xs text-[#A1A1AA]">Manual tasks and auto-synced reminders for this event.</p>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-[#A1A1AA]">
-                <span>{eventTasks.filter((task) => !task.completed).length} open</span>
-                <span>{eventTasks.filter((task) => task.isOverdue).length} overdue</span>
-                <span>{eventTasks.filter((task) => task.isPlaybookAutoTask).length} auto</span>
+                <span>{openEventTasks.length} open</span>
+                <span>{overdueEventTasks.length} overdue</span>
+                <span>{dueTodayEventTasks.length} due today</span>
+                <span>{autoEventTasks.length} auto</span>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-[#27272A] bg-[#111113] px-3 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">Open</p>
+                <p className="mt-2 text-xl font-semibold text-[#FAFAFA]">{openEventTasks.length}</p>
+              </div>
+              <div
+                className={`rounded-2xl border px-3 py-3 ${
+                  overdueEventTasks.length > 0 ? 'border-[#FF8124]/60 bg-[#2a1406]' : 'border-[#27272A] bg-[#111113]'
+                }`}
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">Overdue</p>
+                <p className={`mt-2 text-xl font-semibold ${overdueEventTasks.length > 0 ? 'text-[#FDBA74]' : 'text-[#FAFAFA]'}`}>
+                  {overdueEventTasks.length}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-[#27272A] bg-[#111113] px-3 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">Due Today</p>
+                <p className="mt-2 text-xl font-semibold text-[#FAFAFA]">{dueTodayEventTasks.length}</p>
+              </div>
+              <div className="rounded-2xl border border-[#27272A] bg-[#111113] px-3 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">Auto-Synced</p>
+                <p className="mt-2 text-xl font-semibold text-[#FAFAFA]">{autoEventTasks.length}</p>
               </div>
             </div>
 
@@ -201,36 +232,54 @@ export default async function EventPage({
               <p className="mt-4 text-sm text-[#A1A1AA]">No tasks linked to this event yet.</p>
             ) : (
               <div className="mt-4 space-y-2">
-                {eventTasks.slice(0, 8).map((task) => (
-                  <div key={task.id} className="flex flex-col gap-2 rounded-2xl border border-[#27272A] bg-[#111113] p-3 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className={`text-sm font-semibold ${task.completed ? 'text-[#A1A1AA]' : 'text-[#FAFAFA]'}`}>{task.title}</p>
-                        {task.isPlaybookAutoTask ? (
-                          <span className="rounded-full border border-[#C2410C]/30 bg-[#C2410C]/10 px-2 py-0.5 text-[11px] font-semibold text-[#FDBA74]">
-                            Auto
-                          </span>
-                        ) : null}
-                        {task.isOverdue ? (
-                          <span className="rounded-full border border-[#C2410C]/30 bg-[#C2410C]/10 px-2 py-0.5 text-[11px] font-semibold text-[#FDBA74]">
-                            Overdue
-                          </span>
-                        ) : null}
-                        {task.isDueToday ? (
-                          <span className="rounded-full border border-[#27272A] px-2 py-0.5 text-[11px] font-semibold text-[#FAFAFA]">
-                            Due Today
-                          </span>
+                {eventTasks.map((task) => (
+                  <article
+                    key={task.id}
+                    className={`rounded-2xl border p-4 ${
+                      task.isOverdue && !task.completed
+                        ? 'border-[#FF8124]/60 bg-[#2a1406] shadow-[0_0_16px_rgba(255,129,36,0.16)]'
+                        : task.completed
+                          ? 'border-[#27272A] bg-[#141416]'
+                          : 'border-[#27272A] bg-[#111113]'
+                    }`}
+                  >
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className={`text-sm font-semibold ${task.completed ? 'text-[#71717A] line-through' : 'text-[#FAFAFA]'}`}>{task.title}</p>
+                          {task.isPlaybookAutoTask ? (
+                            <span className="rounded-full border border-[#C2410C]/30 bg-[#C2410C]/10 px-2 py-0.5 text-[11px] font-semibold text-[#FDBA74]">
+                              Auto
+                            </span>
+                          ) : null}
+                          {task.isOverdue ? (
+                            <span className="rounded-full border border-[#C2410C]/30 bg-[#C2410C]/10 px-2 py-0.5 text-[11px] font-semibold text-[#FDBA74]">
+                              Overdue
+                            </span>
+                          ) : null}
+                          {task.isDueToday ? (
+                            <span className="rounded-full border border-[#27272A] bg-[#18181B] px-2 py-0.5 text-[11px] font-semibold text-[#FAFAFA]">
+                              Due Today
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 text-xs text-[#A1A1AA]">
+                          {task.completed ? 'Completed' : 'Open'} · Assigned to {task.assignedTo?.name ?? 'Unassigned'}
+                          {task.dueDate ? ` · Due ${formatDate(task.dueDate)}` : ' · No due date'}
+                        </p>
+                        {task.description ? (
+                          <p className="mt-2 text-sm text-[#A1A1AA] whitespace-pre-line">{task.description}</p>
                         ) : null}
                       </div>
-                      <p className="mt-1 text-xs text-[#A1A1AA]">
-                        {task.completed ? 'Completed' : 'Open'} · Assigned to {task.assignedTo?.name ?? 'Unassigned'}
-                        {task.dueDate ? ` · Due ${formatDate(task.dueDate)}` : ''}
-                      </p>
+
+                      <div className="flex flex-col items-start gap-2 md:items-end">
+                        <TaskCompleteToggle taskId={task.id} completed={task.completed} disabled={!allowEditByRole} />
+                        <span className="text-xs text-[#71717A]">
+                          {task.isPlaybookAutoTask ? 'Synced from playbook' : 'Manual event task'}
+                        </span>
+                      </div>
                     </div>
-                    <span className="text-xs text-[#71717A]">
-                      {task.isPlaybookAutoTask ? 'Synced from playbook' : 'Manual event task'}
-                    </span>
-                  </div>
+                  </article>
                 ))}
               </div>
             )}
