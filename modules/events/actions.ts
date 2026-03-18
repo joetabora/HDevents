@@ -16,7 +16,7 @@ import {
   updateEventBudget,
   updateEventPlaybook
 } from './services';
-import { parseChecklistInput, parseMultilineList } from './playbook';
+import { parseChecklistInput, parseChecklistJson, parseExecutionItemsJson, parseMultilineList } from './playbook';
 import { parseCategory, parseItemStatus, parseOptionalEventType } from './validators';
 
 function parseBudget(input: string): number {
@@ -281,18 +281,20 @@ export async function updateEventPlaybookAction(formData: FormData): Promise<{ s
       marketingAssets: parseMultilineList(String(formData.get('marketingAssets') ?? '')),
       internalCommunication: parseMultilineList(String(formData.get('internalCommunication') ?? '')),
       layoutPlan: String(formData.get('layoutPlan') ?? '').trim(),
-      checklist: parseChecklistInput(String(formData.get('checklist') ?? '')),
+      checklist: String(formData.get('checklistJson') ?? '').trim()
+        ? parseChecklistJson(String(formData.get('checklistJson') ?? ''))
+        : parseChecklistInput(String(formData.get('checklist') ?? '')),
       weekFlow: {
-        monday: parseMultilineList(String(formData.get('weekMonday') ?? '')),
-        tuesday: parseMultilineList(String(formData.get('weekTuesday') ?? '')),
-        wednesday: parseMultilineList(String(formData.get('weekWednesday') ?? '')),
-        friday: parseMultilineList(String(formData.get('weekFriday') ?? '')),
-        saturday: parseMultilineList(String(formData.get('weekSaturday') ?? ''))
+        monday: parseExecutionItemsJson(String(formData.get('weekMondayJson') ?? '[]')),
+        tuesday: parseExecutionItemsJson(String(formData.get('weekTuesdayJson') ?? '[]')),
+        wednesday: parseExecutionItemsJson(String(formData.get('weekWednesdayJson') ?? '[]')),
+        friday: parseExecutionItemsJson(String(formData.get('weekFridayJson') ?? '[]')),
+        saturday: parseExecutionItemsJson(String(formData.get('weekSaturdayJson') ?? '[]'))
       },
       postEventFollowUp: {
-        within24Hours: parseMultilineList(String(formData.get('followUpWithin24Hours') ?? '')),
-        within3Days: parseMultilineList(String(formData.get('followUpWithin3Days') ?? '')),
-        managerMeeting: parseMultilineList(String(formData.get('followUpManagerMeeting') ?? ''))
+        within24Hours: parseExecutionItemsJson(String(formData.get('followUpWithin24HoursJson') ?? '[]')),
+        within3Days: parseExecutionItemsJson(String(formData.get('followUpWithin3DaysJson') ?? '[]')),
+        managerMeeting: parseExecutionItemsJson(String(formData.get('followUpManagerMeetingJson') ?? '[]'))
       },
       rolesAndResponsibilities: {
         marketingLead: String(formData.get('roleMarketingLead') ?? '').trim(),

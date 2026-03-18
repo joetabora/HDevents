@@ -1,7 +1,20 @@
-export type EventPlaybookChecklistItem = {
+export const PLAYBOOK_EXECUTION_STATUSES = ['NOT_STARTED', 'READY', 'IN_PROGRESS', 'DONE'] as const;
+
+export type PlaybookExecutionStatus = (typeof PLAYBOOK_EXECUTION_STATUSES)[number];
+
+export type EventPlaybookExecutionItem = {
+  id: string;
+  title: string;
+  ownerId: string;
+  dueDate: string;
+  status: PlaybookExecutionStatus;
+  completed: boolean;
+  notes: string;
+};
+
+export type EventPlaybookChecklistItem = EventPlaybookExecutionItem & {
   item: string;
   description: string;
-  notes: string;
 };
 
 export type EventPlaybook = {
@@ -24,16 +37,16 @@ export type EventPlaybook = {
   layoutPlan: string;
   checklist: EventPlaybookChecklistItem[];
   weekFlow: {
-    monday: string[];
-    tuesday: string[];
-    wednesday: string[];
-    friday: string[];
-    saturday: string[];
+    monday: EventPlaybookExecutionItem[];
+    tuesday: EventPlaybookExecutionItem[];
+    wednesday: EventPlaybookExecutionItem[];
+    friday: EventPlaybookExecutionItem[];
+    saturday: EventPlaybookExecutionItem[];
   };
   postEventFollowUp: {
-    within24Hours: string[];
-    within3Days: string[];
-    managerMeeting: string[];
+    within24Hours: EventPlaybookExecutionItem[];
+    within3Days: EventPlaybookExecutionItem[];
+    managerMeeting: EventPlaybookExecutionItem[];
   };
   rolesAndResponsibilities: {
     marketingLead: string;
@@ -59,6 +72,18 @@ function asNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+function createExecutionItem(title: string, overrides?: Partial<EventPlaybookExecutionItem>): EventPlaybookExecutionItem {
+  return {
+    id: overrides?.id ?? `item-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'entry'}`,
+    title,
+    ownerId: overrides?.ownerId ?? '',
+    dueDate: overrides?.dueDate ?? '',
+    status: overrides?.status ?? 'NOT_STARTED',
+    completed: overrides?.completed ?? false,
+    notes: overrides?.notes ?? ''
+  };
+}
+
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -67,6 +92,39 @@ function asStringArray(value: unknown): string[] {
   return value
     .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
     .filter(Boolean);
+}
+
+function isExecutionStatus(value: string): value is PlaybookExecutionStatus {
+  return PLAYBOOK_EXECUTION_STATUSES.includes(value as PlaybookExecutionStatus);
+}
+
+function asExecutionItem(value: unknown): EventPlaybookExecutionItem | null {
+  const record = asRecord(value);
+  const title = asString(record.title).trim();
+  if (!title) {
+    return null;
+  }
+
+  const rawStatus = asString(record.status, 'NOT_STARTED');
+
+  return {
+    id: asString(record.id, createExecutionItem(title).id),
+    title,
+    ownerId: asString(record.ownerId),
+    dueDate: asString(record.dueDate),
+    status: isExecutionStatus(rawStatus) ? rawStatus : 'NOT_STARTED',
+    completed: Boolean(record.completed),
+    notes: asString(record.notes)
+  };
+}
+
+function asExecutionList(value: unknown, fallback: EventPlaybookExecutionItem[]): EventPlaybookExecutionItem[] {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const items = value.map(asExecutionItem).filter((entry): entry is EventPlaybookExecutionItem => Boolean(entry));
+  return items;
 }
 
 function asChecklist(value: unknown, fallback: EventPlaybookChecklistItem[]): EventPlaybookChecklistItem[] {
@@ -78,17 +136,24 @@ function asChecklist(value: unknown, fallback: EventPlaybookChecklistItem[]): Ev
     .map((entry) => {
       const record = asRecord(entry);
       const item = asString(record.item).trim();
-      const description = asString(record.description).trim();
-      const notes = asString(record.notes).trim();
-
       if (!item) {
         return null;
       }
 
+      const execution = asExecutionItem({
+        id: record.id,
+        title: asString(record.title, item),
+        ownerId: record.ownerId,
+        dueDate: record.dueDate,
+        status: record.status,
+        completed: record.completed,
+        notes: record.notes
+      }) ?? createExecutionItem(item);
+
       return {
+        ...execution,
         item,
-        description,
-        notes
+        description: asString(record.description).trim()
       };
     })
     .filter((entry): entry is EventPlaybookChecklistItem => Boolean(entry));
@@ -134,52 +199,52 @@ export function defaultEventPlaybook(): EventPlaybook {
     ],
     layoutPlan: 'Define indoor/outdoor footprint, traffic flow, vendor placement, and guest engagement stations.',
     checklist: [
-      { item: 'Tent', description: '', notes: '' },
-      { item: 'Table', description: '', notes: '' },
-      { item: 'Tablecloth', description: '', notes: '' },
-      { item: 'Chairs', description: '', notes: '' },
-      { item: 'Graphic (FB)', description: '1200x1200', notes: '' },
-      { item: 'Graphic (IG)', description: '1080x1920', notes: '' },
-      { item: 'Web Banner', description: '', notes: '' },
-      { item: 'Email Graphic', description: '', notes: '' },
-      { item: 'Email Script', description: '', notes: '' },
-      { item: 'Phone Script', description: '', notes: '' },
-      { item: 'Text Script', description: '', notes: '' },
-      { item: 'Text Blast', description: '', notes: '' },
-      { item: 'Motorcycle', description: '', notes: '' },
-      { item: 'Flyers', description: '', notes: '' },
-      { item: 'Bounce Back Cash', description: '', notes: '' },
-      { item: 'Giveaway Keyword Setup', description: '', notes: '' },
-      { item: 'Giveaway Item', description: '', notes: '' },
-      { item: 'Other Swag', description: '', notes: '' },
-      { item: 'iPad', description: '', notes: '' },
-      { item: 'Poster Sign/Holder', description: '', notes: '' },
-      { item: 'Guitar', description: '', notes: '' },
-      { item: 'Balloons', description: '', notes: '' },
-      { item: 'Flags', description: '', notes: '' }
+      { ...createExecutionItem('Tent'), item: 'Tent', description: '' },
+      { ...createExecutionItem('Table'), item: 'Table', description: '' },
+      { ...createExecutionItem('Tablecloth'), item: 'Tablecloth', description: '' },
+      { ...createExecutionItem('Chairs'), item: 'Chairs', description: '' },
+      { ...createExecutionItem('Graphic (FB)'), item: 'Graphic (FB)', description: '1200x1200' },
+      { ...createExecutionItem('Graphic (IG)'), item: 'Graphic (IG)', description: '1080x1920' },
+      { ...createExecutionItem('Web Banner'), item: 'Web Banner', description: '' },
+      { ...createExecutionItem('Email Graphic'), item: 'Email Graphic', description: '' },
+      { ...createExecutionItem('Email Script'), item: 'Email Script', description: '' },
+      { ...createExecutionItem('Phone Script'), item: 'Phone Script', description: '' },
+      { ...createExecutionItem('Text Script'), item: 'Text Script', description: '' },
+      { ...createExecutionItem('Text Blast'), item: 'Text Blast', description: '' },
+      { ...createExecutionItem('Motorcycle'), item: 'Motorcycle', description: '' },
+      { ...createExecutionItem('Flyers'), item: 'Flyers', description: '' },
+      { ...createExecutionItem('Bounce Back Cash'), item: 'Bounce Back Cash', description: '' },
+      { ...createExecutionItem('Giveaway Keyword Setup'), item: 'Giveaway Keyword Setup', description: '' },
+      { ...createExecutionItem('Giveaway Item'), item: 'Giveaway Item', description: '' },
+      { ...createExecutionItem('Other Swag'), item: 'Other Swag', description: '' },
+      { ...createExecutionItem('iPad'), item: 'iPad', description: '' },
+      { ...createExecutionItem('Poster Sign/Holder'), item: 'Poster Sign/Holder', description: '' },
+      { ...createExecutionItem('Guitar'), item: 'Guitar', description: '' },
+      { ...createExecutionItem('Balloons'), item: 'Balloons', description: '' },
+      { ...createExecutionItem('Flags'), item: 'Flags', description: '' }
     ],
     weekFlow: {
-      monday: ['Post "This Week at the Dealership" teaser on socials.'],
-      tuesday: ['Send CRM email blast.', 'Place any catering or DoorDash orders.'],
-      wednesday: ['Push mid-week teaser post ("3 Days Away").'],
+      monday: [createExecutionItem('Post "This Week at the Dealership" teaser on socials.')],
+      tuesday: [createExecutionItem('Send CRM email blast.'), createExecutionItem('Place any catering or DoorDash orders.')],
+      wednesday: [createExecutionItem('Push mid-week teaser post ("3 Days Away").')],
       friday: [
-        'Post "Happening Tomorrow" reminder content.',
-        'Confirm vendors and delivery times.',
-        'Prepare prizes, tables, and signage.'
+        createExecutionItem('Post "Happening Tomorrow" reminder content.'),
+        createExecutionItem('Confirm vendors and delivery times.'),
+        createExecutionItem('Prepare prizes, tables, and signage.')
       ],
       saturday: [
-        'Setup begins at 8:30 AM.',
-        'Confirm tents, grill, tables, signage, prize entry station, and staff reminders.',
-        'Capture photo and video content during the event.'
+        createExecutionItem('Setup begins at 8:30 AM.'),
+        createExecutionItem('Confirm tents, grill, tables, signage, prize entry station, and staff reminders.'),
+        createExecutionItem('Capture photo and video content during the event.')
       ]
     },
     postEventFollowUp: {
       within24Hours: [
-        'Post event photos and videos with a thank-you message.',
-        'Collect raffle entries and track leads into CRM or follow-up system.'
+        createExecutionItem('Post event photos and videos with a thank-you message.'),
+        createExecutionItem('Collect raffle entries and track leads into CRM or follow-up system.')
       ],
-      within3Days: ['Send follow-up email to participants and promote the next event.'],
-      managerMeeting: ['Share recap covering attendance, leads captured, and sales impact.']
+      within3Days: [createExecutionItem('Send follow-up email to participants and promote the next event.')],
+      managerMeeting: [createExecutionItem('Share recap covering attendance, leads captured, and sales impact.')]
     },
     rolesAndResponsibilities: {
       marketingLead: '',
@@ -237,21 +302,47 @@ export function getEventPlaybook(value: unknown): EventPlaybook {
     layoutPlan: asString(record.layoutPlan, base.layoutPlan),
     checklist: Array.isArray(record.checklist) ? asChecklist(record.checklist, []) : base.checklist,
     weekFlow: {
-      monday: Array.isArray(weekFlow.monday) ? asStringArray(weekFlow.monday) : base.weekFlow.monday,
-      tuesday: Array.isArray(weekFlow.tuesday) ? asStringArray(weekFlow.tuesday) : base.weekFlow.tuesday,
-      wednesday: Array.isArray(weekFlow.wednesday) ? asStringArray(weekFlow.wednesday) : base.weekFlow.wednesday,
-      friday: Array.isArray(weekFlow.friday) ? asStringArray(weekFlow.friday) : base.weekFlow.friday,
-      saturday: Array.isArray(weekFlow.saturday) ? asStringArray(weekFlow.saturday) : base.weekFlow.saturday
+      monday: Array.isArray(weekFlow.monday)
+        ? typeof weekFlow.monday[0] === 'string'
+          ? asStringArray(weekFlow.monday).map((entry) => createExecutionItem(entry))
+          : asExecutionList(weekFlow.monday, [])
+        : base.weekFlow.monday,
+      tuesday: Array.isArray(weekFlow.tuesday)
+        ? typeof weekFlow.tuesday[0] === 'string'
+          ? asStringArray(weekFlow.tuesday).map((entry) => createExecutionItem(entry))
+          : asExecutionList(weekFlow.tuesday, [])
+        : base.weekFlow.tuesday,
+      wednesday: Array.isArray(weekFlow.wednesday)
+        ? typeof weekFlow.wednesday[0] === 'string'
+          ? asStringArray(weekFlow.wednesday).map((entry) => createExecutionItem(entry))
+          : asExecutionList(weekFlow.wednesday, [])
+        : base.weekFlow.wednesday,
+      friday: Array.isArray(weekFlow.friday)
+        ? typeof weekFlow.friday[0] === 'string'
+          ? asStringArray(weekFlow.friday).map((entry) => createExecutionItem(entry))
+          : asExecutionList(weekFlow.friday, [])
+        : base.weekFlow.friday,
+      saturday: Array.isArray(weekFlow.saturday)
+        ? typeof weekFlow.saturday[0] === 'string'
+          ? asStringArray(weekFlow.saturday).map((entry) => createExecutionItem(entry))
+          : asExecutionList(weekFlow.saturday, [])
+        : base.weekFlow.saturday
     },
     postEventFollowUp: {
       within24Hours: Array.isArray(postEventFollowUp.within24Hours)
-        ? asStringArray(postEventFollowUp.within24Hours)
+        ? typeof postEventFollowUp.within24Hours[0] === 'string'
+          ? asStringArray(postEventFollowUp.within24Hours).map((entry) => createExecutionItem(entry))
+          : asExecutionList(postEventFollowUp.within24Hours, [])
         : base.postEventFollowUp.within24Hours,
       within3Days: Array.isArray(postEventFollowUp.within3Days)
-        ? asStringArray(postEventFollowUp.within3Days)
+        ? typeof postEventFollowUp.within3Days[0] === 'string'
+          ? asStringArray(postEventFollowUp.within3Days).map((entry) => createExecutionItem(entry))
+          : asExecutionList(postEventFollowUp.within3Days, [])
         : base.postEventFollowUp.within3Days,
       managerMeeting: Array.isArray(postEventFollowUp.managerMeeting)
-        ? asStringArray(postEventFollowUp.managerMeeting)
+        ? typeof postEventFollowUp.managerMeeting[0] === 'string'
+          ? asStringArray(postEventFollowUp.managerMeeting).map((entry) => createExecutionItem(entry))
+          : asExecutionList(postEventFollowUp.managerMeeting, [])
         : base.postEventFollowUp.managerMeeting
     },
     rolesAndResponsibilities: {
@@ -289,9 +380,12 @@ export function parseChecklistInput(value: string): EventPlaybookChecklistItem[]
     .map((entry) => {
       const [item, description = '', notes = ''] = entry.split('|').map((part) => part.trim());
       return {
+        ...createExecutionItem(item, {
+          notes
+        }),
         item,
-        description,
-        notes
+        title: item,
+        description
       };
     })
     .filter((entry) => entry.item);
@@ -301,4 +395,38 @@ export function formatChecklistInput(value: EventPlaybookChecklistItem[]): strin
   return value
     .map((entry) => [entry.item, entry.description, entry.notes].filter(Boolean).join(' | '))
     .join('\n');
+}
+
+export function parseExecutionItemsInput(value: string): EventPlaybookExecutionItem[] {
+  return value
+    .split('\n')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => createExecutionItem(entry));
+}
+
+export function parseExecutionItemsJson(value: string): EventPlaybookExecutionItem[] {
+  if (!value.trim()) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return asExecutionList(parsed, []);
+  } catch {
+    throw new Error('Execution items payload is invalid');
+  }
+}
+
+export function parseChecklistJson(value: string): EventPlaybookChecklistItem[] {
+  if (!value.trim()) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return asChecklist(parsed, []);
+  } catch {
+    throw new Error('Checklist payload is invalid');
+  }
 }

@@ -177,7 +177,7 @@ export default async function EventPage({
           </Card>
         )
       ) : selectedTab === 'playbook' ? (
-        <PlaybookPanel eventId={event.id} playbook={playbook} canEdit={allowEdit} />
+        <PlaybookPanel eventId={event.id} playbook={playbook} canEdit={allowEdit} users={userOptions} />
       ) : (
         <>
           <BudgetCards totalBudget={event.budget} allocated={financials.totalAllocated} remaining={financials.remainingBudget} />
