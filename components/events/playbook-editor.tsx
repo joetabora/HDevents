@@ -18,6 +18,40 @@ type UserOption = {
   email: string;
 };
 
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, index) => {
+  const hour24 = Math.floor(index / 2);
+  const minutes = index % 2 === 0 ? '00' : '30';
+  const meridiem = hour24 >= 12 ? 'PM' : 'AM';
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return `${hour12}:${minutes} ${meridiem}`;
+});
+
+function TimeSelect({
+  label,
+  name,
+  defaultValue
+}: {
+  label: string;
+  name: string;
+  defaultValue: string;
+}) {
+  const hasExistingOption = TIME_OPTIONS.includes(defaultValue);
+
+  return (
+    <label>
+      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">{label}</span>
+      <select name={name} defaultValue={defaultValue}>
+        {!hasExistingOption && defaultValue ? <option value={defaultValue}>{defaultValue}</option> : null}
+        {TIME_OPTIONS.map((time) => (
+          <option key={time} value={time}>
+            {time}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function createClientExecutionItem(title = ''): EventPlaybookExecutionItem {
   return {
     id: `row-${Math.random().toString(36).slice(2, 10)}`,
@@ -375,15 +409,9 @@ export function PlaybookEditor({
           <input name="location" defaultValue={playbook.location} />
         </label>
 
-        <label>
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Start Time</span>
-          <input name="startTime" defaultValue={playbook.startTime} />
-        </label>
+        <TimeSelect label="Start Time" name="startTime" defaultValue={playbook.startTime} />
 
-        <label>
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">End Time</span>
-          <input name="endTime" defaultValue={playbook.endTime} />
-        </label>
+        <TimeSelect label="End Time" name="endTime" defaultValue={playbook.endTime} />
 
         <label>
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">QR Scan Goal</span>
