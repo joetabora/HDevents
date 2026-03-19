@@ -23,6 +23,12 @@ export type EventPlaybookToggleItem = {
   completed: boolean;
 };
 
+const MANDATORY_PRE_EVENT_PREPARATION_LABELS = [
+  'Finalize the event theme and secure outside vendors, charities, bands, and food partners.',
+  'Confirm permits or approvals for food, music, raffles, and any public activation.',
+  'Lock event-day staffing coverage and operating responsibilities.'
+] as const;
+
 export type EventPlaybook = {
   purpose: string;
   goals: string[];
@@ -136,6 +142,21 @@ function asToggleList(value: unknown, fallback: EventPlaybookToggleItem[]): Even
   return items.length > 0 ? items : fallback;
 }
 
+function defaultPreEventPreparation(): EventPlaybookToggleItem[] {
+  return MANDATORY_PRE_EVENT_PREPARATION_LABELS.map((label) => createToggleItem(label));
+}
+
+function normalizeMandatoryPreEventPreparation(value: unknown): EventPlaybookToggleItem[] {
+  const fallback = defaultPreEventPreparation();
+  const items = asToggleList(value, fallback);
+  const completedByLabel = new Map(items.map((item) => [item.label, item.completed]));
+
+  return fallback.map((item) => ({
+    ...item,
+    completed: completedByLabel.get(item.label) ?? false
+  }));
+}
+
 function isExecutionStatus(value: string): value is PlaybookExecutionStatus {
   return PLAYBOOK_EXECUTION_STATUSES.includes(value as PlaybookExecutionStatus);
 }
@@ -222,11 +243,7 @@ export function defaultEventPlaybook(): EventPlaybook {
       bikeActivity: 'Bike wash, test rides, slow races, or show and shine',
       engagementOpportunity: 'Raffles, sweepstakes, giveaways, or prize entries'
     },
-    preEventPreparation: [
-      createToggleItem('Finalize the event theme and secure outside vendors, charities, bands, and food partners.'),
-      createToggleItem('Confirm permits or approvals for food, music, raffles, and any public activation.'),
-      createToggleItem('Lock event-day staffing coverage and operating responsibilities.')
-    ],
+    preEventPreparation: defaultPreEventPreparation(),
     marketingAssets: [
       'Flyer (print and digital)',
       'Social media graphics for Facebook, Instagram, Stories, and Reels',
@@ -334,9 +351,7 @@ export function getEventPlaybook(value: unknown): EventPlaybook {
       bikeActivity: asString(coreActivities.bikeActivity, base.coreActivities.bikeActivity),
       engagementOpportunity: asString(coreActivities.engagementOpportunity, base.coreActivities.engagementOpportunity)
     },
-    preEventPreparation: Array.isArray(record.preEventPreparation)
-      ? asToggleList(record.preEventPreparation, base.preEventPreparation)
-      : base.preEventPreparation,
+    preEventPreparation: normalizeMandatoryPreEventPreparation(record.preEventPreparation),
     marketingAssets: Array.isArray(record.marketingAssets) ? asStringArray(record.marketingAssets) : base.marketingAssets,
     internalCommunication: Array.isArray(record.internalCommunication)
       ? asStringArray(record.internalCommunication)

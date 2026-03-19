@@ -73,14 +73,6 @@ function createClientChecklistItem(item = ''): EventPlaybookChecklistItem {
   };
 }
 
-function createClientToggleItem(label = ''): EventPlaybookToggleItem {
-  return {
-    id: `toggle-${Math.random().toString(36).slice(2, 10)}`,
-    label,
-    completed: false
-  };
-}
-
 function StringListRows({
   title,
   items,
@@ -128,24 +120,17 @@ function StringListRows({
 function ToggleChecklistRows({
   title,
   items,
-  onAdd,
-  onUpdate,
-  onRemove
+  onUpdate
 }: {
   title: string;
   items: EventPlaybookToggleItem[];
-  onAdd: () => void;
   onUpdate: (index: number, item: EventPlaybookToggleItem) => void;
-  onRemove: (index: number) => void;
 }) {
   return (
     <div className="space-y-3 rounded-2xl border border-[#27272A] bg-[#111113] p-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="space-y-1">
         <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#FAFAFA]">{title}</h3>
-        <Button type="button" variant="secondary" className="px-3 py-1.5" onClick={onAdd}>
-          <Plus className="h-3.5 w-3.5" />
-          Add Row
-        </Button>
+        <p className="text-xs text-[#71717A]">Fixed required prep steps. Mark each one yes or no.</p>
       </div>
 
       {items.length === 0 ? (
@@ -168,22 +153,7 @@ function ToggleChecklistRows({
                 {item.completed ? 'Yes' : 'No'}
               </label>
 
-              <input
-                className="flex-1"
-                value={item.label}
-                placeholder="Add a pre-event prep step"
-                onChange={(event) =>
-                  onUpdate(index, {
-                    ...item,
-                    label: event.target.value
-                  })
-                }
-              />
-
-              <Button type="button" variant="danger" className="px-3 py-1.5" onClick={() => onRemove(index)}>
-                <Trash2 className="h-3.5 w-3.5" />
-                Remove
-              </Button>
+              <p className="flex-1 text-sm text-[#A1A1AA]">{item.label}</p>
             </div>
           ))}
         </div>
@@ -534,11 +504,9 @@ export function PlaybookEditor({
         <ToggleChecklistRows
           title="Pre-Event Preparation"
           items={preEventPreparation}
-          onAdd={() => setPreEventPreparation((prev) => [...prev, createClientToggleItem()])}
           onUpdate={(index, item) =>
             setPreEventPreparation((prev) => prev.map((entry, itemIndex) => (itemIndex === index ? item : entry)))
           }
-          onRemove={(index) => setPreEventPreparation((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
         />
 
         <StringListRows
