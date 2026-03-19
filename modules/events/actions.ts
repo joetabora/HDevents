@@ -17,7 +17,14 @@ import {
   updateEventBudget,
   updateEventPlaybook
 } from './services';
-import { parseChecklistInput, parseChecklistJson, parseExecutionItemsJson, parseMultilineList, parseStringListJson } from './playbook';
+import {
+  parseChecklistInput,
+  parseChecklistJson,
+  parseExecutionItemsJson,
+  parseMultilineList,
+  parseStringListJson,
+  parseToggleListJson
+} from './playbook';
 import { parseCategory, parseItemStatus, parseOptionalEventType } from './validators';
 
 function parseBudget(input: string): number {
@@ -281,8 +288,12 @@ export async function updateEventPlaybookAction(formData: FormData): Promise<{ s
         engagementOpportunity: String(formData.get('coreEngagementOpportunity') ?? '').trim()
       },
       preEventPreparation: String(formData.get('preEventPreparationJson') ?? '').trim()
-        ? parseStringListJson(String(formData.get('preEventPreparationJson') ?? ''))
-        : parseMultilineList(String(formData.get('preEventPreparation') ?? '')),
+        ? parseToggleListJson(String(formData.get('preEventPreparationJson') ?? ''))
+        : parseMultilineList(String(formData.get('preEventPreparation') ?? '')).map((label) => ({
+            id: `toggle-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'entry'}`,
+            label,
+            completed: false
+          })),
       marketingAssets: String(formData.get('marketingAssetsJson') ?? '').trim()
         ? parseStringListJson(String(formData.get('marketingAssetsJson') ?? ''))
         : parseMultilineList(String(formData.get('marketingAssets') ?? '')),

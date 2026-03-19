@@ -8,7 +8,8 @@ import {
   PLAYBOOK_EXECUTION_STATUSES,
   type EventPlaybook,
   type EventPlaybookChecklistItem,
-  type EventPlaybookExecutionItem
+  type EventPlaybookExecutionItem,
+  type EventPlaybookToggleItem
 } from '@/modules/events/playbook';
 import { updateEventPlaybookFormAction } from '@/modules/events/actions';
 
@@ -72,6 +73,14 @@ function createClientChecklistItem(item = ''): EventPlaybookChecklistItem {
   };
 }
 
+function createClientToggleItem(label = ''): EventPlaybookToggleItem {
+  return {
+    id: `toggle-${Math.random().toString(36).slice(2, 10)}`,
+    label,
+    completed: false
+  };
+}
+
 function StringListRows({
   title,
   items,
@@ -104,6 +113,73 @@ function StringListRows({
           {items.map((item, index) => (
             <div key={`${title}-${index}`} className="flex gap-3 rounded-2xl border border-[#27272A] bg-[#18181B] p-3">
               <input value={item} placeholder={placeholder} onChange={(event) => onUpdate(index, event.target.value)} />
+              <Button type="button" variant="danger" className="px-3 py-1.5" onClick={() => onRemove(index)}>
+                <Trash2 className="h-3.5 w-3.5" />
+                Remove
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ToggleChecklistRows({
+  title,
+  items,
+  onAdd,
+  onUpdate,
+  onRemove
+}: {
+  title: string;
+  items: EventPlaybookToggleItem[];
+  onAdd: () => void;
+  onUpdate: (index: number, item: EventPlaybookToggleItem) => void;
+  onRemove: (index: number) => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-2xl border border-[#27272A] bg-[#111113] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#FAFAFA]">{title}</h3>
+        <Button type="button" variant="secondary" className="px-3 py-1.5" onClick={onAdd}>
+          <Plus className="h-3.5 w-3.5" />
+          Add Row
+        </Button>
+      </div>
+
+      {items.length === 0 ? (
+        <p className="text-sm text-[#A1A1AA]">No items added yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {items.map((item, index) => (
+            <div key={item.id} className="flex flex-col gap-3 rounded-2xl border border-[#27272A] bg-[#18181B] p-3 md:flex-row md:items-center">
+              <label className="inline-flex items-center gap-3 text-sm font-medium text-[#FAFAFA] md:w-36">
+                <input
+                  type="checkbox"
+                  checked={item.completed}
+                  onChange={(event) =>
+                    onUpdate(index, {
+                      ...item,
+                      completed: event.target.checked
+                    })
+                  }
+                />
+                {item.completed ? 'Yes' : 'No'}
+              </label>
+
+              <input
+                className="flex-1"
+                value={item.label}
+                placeholder="Add a pre-event prep step"
+                onChange={(event) =>
+                  onUpdate(index, {
+                    ...item,
+                    label: event.target.value
+                  })
+                }
+              />
+
               <Button type="button" variant="danger" className="px-3 py-1.5" onClick={() => onRemove(index)}>
                 <Trash2 className="h-3.5 w-3.5" />
                 Remove
@@ -378,7 +454,11 @@ export function PlaybookEditor({
     <form action={updateEventPlaybookFormAction} className="mt-6 space-y-8">
       <input type="hidden" name="eventId" value={eventId} />
       <input type="hidden" name="goalsJson" value={JSON.stringify(goals.filter((item) => item.trim()))} />
-      <input type="hidden" name="preEventPreparationJson" value={JSON.stringify(preEventPreparation.filter((item) => item.trim()))} />
+      <input
+        type="hidden"
+        name="preEventPreparationJson"
+        value={JSON.stringify(preEventPreparation.filter((item) => item.label.trim()))}
+      />
       <input type="hidden" name="marketingAssetsJson" value={JSON.stringify(marketingAssets.filter((item) => item.trim()))} />
       <input type="hidden" name="internalCommunicationJson" value={JSON.stringify(internalCommunication.filter((item) => item.trim()))} />
       <input type="hidden" name="successMetricsJson" value={JSON.stringify(successMetrics.filter((item) => item.trim()))} />
@@ -451,12 +531,13 @@ export function PlaybookEditor({
       </section>
 
       <section className="grid gap-4 xl:grid-cols-3">
-        <StringListRows
+        <ToggleChecklistRows
           title="Pre-Event Preparation"
           items={preEventPreparation}
-          placeholder="Add a prep action"
-          onAdd={() => setPreEventPreparation((prev) => [...prev, ''])}
-          onUpdate={(index, value) => setPreEventPreparation((prev) => updateStringList(prev, index, value))}
+          onAdd={() => setPreEventPreparation((prev) => [...prev, createClientToggleItem()])}
+          onUpdate={(index, item) =>
+            setPreEventPreparation((prev) => prev.map((entry, itemIndex) => (itemIndex === index ? item : entry)))
+          }
           onRemove={(index) => setPreEventPreparation((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
         />
 

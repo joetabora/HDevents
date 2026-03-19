@@ -17,6 +17,12 @@ export type EventPlaybookChecklistItem = EventPlaybookExecutionItem & {
   description: string;
 };
 
+export type EventPlaybookToggleItem = {
+  id: string;
+  label: string;
+  completed: boolean;
+};
+
 export type EventPlaybook = {
   purpose: string;
   goals: string[];
@@ -31,7 +37,7 @@ export type EventPlaybook = {
     bikeActivity: string;
     engagementOpportunity: string;
   };
-  preEventPreparation: string[];
+  preEventPreparation: EventPlaybookToggleItem[];
   marketingAssets: string[];
   internalCommunication: string[];
   layoutPlan: string;
@@ -84,6 +90,14 @@ function createExecutionItem(title: string, overrides?: Partial<EventPlaybookExe
   };
 }
 
+function createToggleItem(label: string, overrides?: Partial<EventPlaybookToggleItem>): EventPlaybookToggleItem {
+  return {
+    id: overrides?.id ?? `toggle-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'entry'}`,
+    label,
+    completed: overrides?.completed ?? false
+  };
+}
+
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -92,6 +106,34 @@ function asStringArray(value: unknown): string[] {
   return value
     .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
     .filter(Boolean);
+}
+
+function asToggleList(value: unknown, fallback: EventPlaybookToggleItem[]): EventPlaybookToggleItem[] {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const items = value
+    .map((entry) => {
+      if (typeof entry === 'string') {
+        const label = entry.trim();
+        return label ? createToggleItem(label) : null;
+      }
+
+      const record = asRecord(entry);
+      const label = asString(record.label).trim();
+      if (!label) {
+        return null;
+      }
+
+      return createToggleItem(label, {
+        id: asString(record.id),
+        completed: Boolean(record.completed)
+      });
+    })
+    .filter((entry): entry is EventPlaybookToggleItem => Boolean(entry));
+
+  return items.length > 0 ? items : fallback;
 }
 
 function isExecutionStatus(value: string): value is PlaybookExecutionStatus {
@@ -181,9 +223,9 @@ export function defaultEventPlaybook(): EventPlaybook {
       engagementOpportunity: 'Raffles, sweepstakes, giveaways, or prize entries'
     },
     preEventPreparation: [
-      'Finalize the event theme and secure outside vendors, charities, bands, and food partners.',
-      'Confirm permits or approvals for food, music, raffles, and any public activation.',
-      'Lock event-day staffing coverage and operating responsibilities.'
+      createToggleItem('Finalize the event theme and secure outside vendors, charities, bands, and food partners.'),
+      createToggleItem('Confirm permits or approvals for food, music, raffles, and any public activation.'),
+      createToggleItem('Lock event-day staffing coverage and operating responsibilities.')
     ],
     marketingAssets: [
       'Flyer (print and digital)',
@@ -293,7 +335,7 @@ export function getEventPlaybook(value: unknown): EventPlaybook {
       engagementOpportunity: asString(coreActivities.engagementOpportunity, base.coreActivities.engagementOpportunity)
     },
     preEventPreparation: Array.isArray(record.preEventPreparation)
-      ? asStringArray(record.preEventPreparation)
+      ? asToggleList(record.preEventPreparation, base.preEventPreparation)
       : base.preEventPreparation,
     marketingAssets: Array.isArray(record.marketingAssets) ? asStringArray(record.marketingAssets) : base.marketingAssets,
     internalCommunication: Array.isArray(record.internalCommunication)
@@ -441,5 +483,18 @@ export function parseStringListJson(value: string): string[] {
     return asStringArray(parsed);
   } catch {
     throw new Error('List payload is invalid');
+  }
+}
+
+export function parseToggleListJson(value: string): EventPlaybookToggleItem[] {
+  if (!value.trim()) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return asToggleList(parsed, []);
+  } catch {
+    throw new Error('Checklist payload is invalid');
   }
 }

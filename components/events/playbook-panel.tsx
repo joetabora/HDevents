@@ -1,6 +1,11 @@
 import { Card } from '@/components/ui/card';
 import { PlaybookEditor } from '@/components/events/playbook-editor';
-import { type EventPlaybook, type EventPlaybookChecklistItem, type EventPlaybookExecutionItem } from '@/modules/events/playbook';
+import {
+  type EventPlaybook,
+  type EventPlaybookChecklistItem,
+  type EventPlaybookExecutionItem,
+  type EventPlaybookToggleItem
+} from '@/modules/events/playbook';
 
 type UserOption = {
   id: string;
@@ -83,6 +88,38 @@ function ExecutionPreview({
           );
         })}
       </ul>
+    </Card>
+  );
+}
+
+function ToggleChecklistPreview({
+  title,
+  items
+}: {
+  title: string;
+  items: EventPlaybookToggleItem[];
+}) {
+  return (
+    <Card className="p-4">
+      <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#FAFAFA]">{title}</h3>
+      {items.length === 0 ? (
+        <p className="mt-3 text-sm text-[#A1A1AA]">No items added yet.</p>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {items.map((item) => (
+            <li key={item.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#27272A] bg-[#111113] px-3 py-2">
+              <span className="text-sm text-[#A1A1AA]">{item.label}</span>
+              <span
+                className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                  item.completed ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' : 'border-[#27272A] text-[#A1A1AA]'
+                }`}
+              >
+                {item.completed ? 'YES' : 'NO'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </Card>
   );
 }
@@ -183,16 +220,6 @@ export function PlaybookPanel({
                 <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#FAFAFA]">Preparation & Marketing</h3>
                 <div className="mt-3 space-y-4">
                   <div>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Pre-Event Preparation</p>
-                    <ul className="space-y-2">
-                      {playbook.preEventPreparation.map((item, index) => (
-                        <li key={`prep-${index}`} className="rounded-2xl border border-[#27272A] bg-[#111113] px-3 py-2 text-sm text-[#A1A1AA]">
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#A1A1AA]">Marketing Assets</p>
                     <ul className="space-y-2">
                       {playbook.marketingAssets.map((item, index) => (
@@ -215,7 +242,10 @@ export function PlaybookPanel({
                 </div>
               </Card>
 
-              <ExecutionPreview title="Operational Checklist" items={playbook.checklist} checklist users={users} />
+              <div className="space-y-4">
+                <ToggleChecklistPreview title="Pre-Event Preparation" items={playbook.preEventPreparation} />
+                <ExecutionPreview title="Operational Checklist" items={playbook.checklist} checklist users={users} />
+              </div>
             </section>
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
